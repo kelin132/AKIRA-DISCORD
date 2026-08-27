@@ -107,17 +107,33 @@ export default {
         } catch { /* not in a group or metadata unavailable */ }
       }
 
+      // Add Owner from env if not already in staffMap
+      const ownerId = process.env.DISCORD_OWNER_ID;
+      if (ownerId && !staffMap.has(ownerId.split('@')[0].split(':')[0])) {
+        const num = ownerId.split('@')[0].split(':')[0];
+        staffMap.set(num, {
+          jid:   ownerId.includes('@') ? ownerId : `discord:${ownerId}`,
+          name:  process.env.OWNER_NAME || 'Owner',
+          level: 99,
+        });
+      }
+
       // Sort: highest level first, then alphabetically
       const sorted = [...staffMap.values()].sort(
         (a, b) => b.level - a.level || a.name.localeCompare(b.name)
       );
 
       const rows = sorted.map((s, index) => {
-        const storedNum = s.jid.split('@')[0].split(':')[0].replace(/\D/g, '');
-        const number    = cleanNumMap[storedNum] || storedNum;
-        const label     = LEVEL_LABEL[s.level] || 'MOD';
+        const jid = s.jid;
+        const isDiscord = jid.startsWith('discord:');
+        const number = isDiscord 
+          ? jid.replace('discord:', '') 
+          : `+${jid.split('@')[0].split(':')[0].replace(/\D/g, '')}`;
+        
+        const label = LEVEL_LABEL[s.level] || 'MOD';
+        
         return [
-          `│ \`${index + 1}.\` *+${number}*`,
+          `│ \`${index + 1}.\` *${number}*`,
           `│    👤 Name: *${s.name}*`,
           `│    🛡️ Role: \`${label}\``,
         ].join('\n');
@@ -189,9 +205,10 @@ export default {
       return sock.sendMessage(jid, {
         text:
           `╭─❀「 🛡️ *𝐌𝐎𝐃𝐒 & 𝐒𝐓𝐀𝐅𝐅* 」❀─╮\n` +
-          `│ ✅ @${num} added as bot mod!\n` +
+          `│ ✅ User added as bot mod!\n` +
           `│\n` +
           `│ 👤 Name: *${name}*\n` +
+          `│ 🛡️ Role: \`MOD\`\n` +
           `│ 📞 Phone: \`+${num}\`\n` +
           `╰───────────────❀`,
         mentions: [targetJid],
@@ -216,7 +233,10 @@ export default {
       return sock.sendMessage(jid, {
         text:
           `╭─❀「 🛡️ *𝐌𝐎𝐃𝐒 & 𝐒𝐓𝐀𝐅𝐅* 」❀─╮\n` +
-          `│ ✅ @${num} (*${name}*) removed from mods.\n` +
+          `│ ✅ User removed from mods.\n` +
+          `│\n` +
+          `│ 👤 Name: *${name}*\n` +
+          `│ 📞 Phone: \`+${num}\`\n` +
           `╰───────────────❀`,
         mentions: [targetJid],
       }, { quoted: msg });
