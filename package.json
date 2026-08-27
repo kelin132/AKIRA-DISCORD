@@ -1,0 +1,24 @@
+{
+  "name": "akira-discord",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "axios": "^1.20.0",
+    "canvas": "^3.2.3",
+    "discord.js": "^14.27.0",
+    "dotenv": "^17.4.2",
+    "fluent-ffmpeg": "^2.1.3",
+    "mongodb": "^7.6.0",
+    "mongoose": "^9.9.4",
+    "node-fetch": "^3.3.2"
+  }
+}

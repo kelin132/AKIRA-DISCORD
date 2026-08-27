@@ -1,0 +1,6 @@
+node_modules
+.env
+data/*.json
+!data/discord_mods.json
+*.log
+.DS_Store
