@@ -47,20 +47,25 @@ function formatWealthLeaderboard(users, cardCounts, pokemonCounts, companies) {
 function formatCategoryLeaderboard({ heading, subtitle, rows, valueIcon, valueLabel, footer }) {
   const visibleRows = rows.slice(0, 10);
   const lines = [
-    "⛩️  *𝗪𝗘𝗔𝗟𝗧𝗛  𝗥𝗔𝗡𝗞𝗜𝗡𝗚𝗦* ⛩️",
-    "┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄",
-    `  🌸 *${subtitle || heading}*`,
-    "  ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦",
-    "",
+    `╭━━━━━━〔 🎴 *${heading.toUpperCase()}* 〕━━━━━━╮`,
+    "│",
+    `│       ✦ *${subtitle.toUpperCase()}* ✦`,
+    "│             ───── ୨୧ ─────",
+    "│",
   ];
   visibleRows.forEach((row, index) => {
-    const name = String(row.name || "Trainer").trim();
+    const name = String(row.name || "Trainer").trim().toUpperCase();
     const value = Number(row.value) || 0;
-    lines.push(`『 ${WEALTH_RANKS[index] || String(index + 1)} 』 *${name}*`);
-    lines.push(`  ┗ ${valueIcon} *${value.toLocaleString()} ${valueLabel}*`);
-    if (index < visibleRows.length - 1) lines.push(WEALTH_SEPARATOR);
+    const medal = MEDALS[index] || `(${index + 1})`;
+    lines.push(`│ ${medal} *${name}*`);
+    lines.push(`│    ╰─ ${valueIcon} *${value.toLocaleString()} ${valueLabel}*`);
+    lines.push("│");
   });
-  lines.push("", "✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦", `🌺 _${footer || heading}_`);
+  lines.push(
+    `│       🌸 ✦ ${footer || "COLLECT • COMPETE"} ✦ 🌸`,
+    "│",
+    `╰━━━━━━〔 🌸 *${heading.toUpperCase()}* 〕━━━━━━╯`
+  );
   return lines.join("\n");
 }
 

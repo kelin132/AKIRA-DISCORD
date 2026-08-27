@@ -29,25 +29,21 @@ export function formatAccountBalance({
   orbs,
   netWorth = Number(wallet ?? 0) + Number(bank ?? 0),
   extraRows = [],
-  footerLines = [],
 }) {
   const rows = [
-    row("💰", "Wallet", money(wallet)),
-    row("🏦", "Bank", money(bank)),
-    row("💎", "Gems", number(gems)),
+    row("💰", "Wallet ", money(wallet)),
+    row("🏦", "Bank   ", money(bank)),
+    row("💎", "Gems   ", number(gems)),
   ];
 
-  if (vault !== undefined) rows.push(row("🔒", "Vault", money(vault)));
-  if (orbs !== undefined) rows.push(row("🔮", "Orbs", number(orbs)));
-  rows.push("│", row("🌌", "Worth", money(netWorth)));
+  if (vault !== undefined && vault !== null) rows.push(row("🔒", "Vault  ", money(vault)));
+  if (orbs !== undefined && orbs !== null) rows.push(row("🔮", "Orbs   ", number(orbs)));
+  
+  rows.push("│");
+  rows.push(row("🌌", "Worth  ", money(netWorth)));
 
   if (extraRows.length) {
     rows.push("│", ...extraRows.map((value) => `│ ${value}`));
-  }
-
-  if (footerLines.length) {
-    rows.push("│", `│ ✦ ${footerLines[0]}`);
-    rows.push(...footerLines.slice(1).map((line) => `│   ${line}`));
   }
 
   return [

@@ -693,6 +693,47 @@ You are now free to join another company.`
       );
     }
 
+    // ── WORK ──────────────────────────────────────────────────────────────────
+    if (sub === "work") {
+      const company = await getCompanyForEmployee(sender);
+      if (!company) return reply("❌ You are not employed at any company!");
+
+      const now = Date.now();
+      const lastWork = company.lastWorkTimes?.[sender] || 0;
+      if (now - lastWork < COMPANY_WORK_COOLDOWN) {
+        const remaining = Math.ceil((COMPANY_WORK_COOLDOWN - (now - lastWork)) / 1000);
+        return reply(`⏳ *Work Cooldown!* Wait \`${remaining}s\` before your next shift at ${company.name}.`);
+      }
+
+      const emp = company.employees.find(e => e.jid === sender);
+      const salary = emp.salary || 1000;
+      const workPay = Math.floor(salary * 0.25 + Math.random() * (salary * 0.1)); // 25-35% of daily salary per shift
+
+      if ((company.treasury || 0) < workPay) {
+        return reply(`❌ *${company.name} is bankrupt!* The treasury is empty and cannot pay your shift.`);
+      }
+
+      const user = await getUser(sender);
+      user.money = (user.money || 0) + workPay;
+      company.treasury -= workPay;
+      company.lastWorkTimes = { ...(company.lastWorkTimes || {}), [sender]: now };
+      company.xp = (company.xp || 0) + 1;
+
+      await saveUser(sender, user);
+      await saveCompany(company);
+      await addHistory(sender, "company_work", workPay, `Shift at ${company.name}`);
+
+      return reply(
+`🛠️ *SHIFT COMPLETED!*
+
+🏢 Company : \`${company.name}\`
+💰 Earned  : \`$${workPay.toLocaleString()}\`
+🏦 Treasury: \`$${company.treasury.toLocaleString()}\`
+✨ Company XP: \`${company.xp.toLocaleString()}\`
+
+*Next shift in 9 minutes.*`);
+    }
+
     return reply("❌ Unknown command.\n\nType \`.company help\` for all commands.");
   },
 };
