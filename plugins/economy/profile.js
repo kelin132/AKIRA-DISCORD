@@ -7,6 +7,7 @@ import { guildSystem } from "../../lib/guildSystem.js";
 import { GYMS } from "../../lib/pokemon/gymData.mjs";
 import { getTrainer } from "../../lib/pokemon/players.mjs";
 import { EmbedBuilder } from "discord.js";
+import { discordAccountKey } from "../../lib/identity.mjs";
 
 const xpForLevel = (level) => level * 100;
 
@@ -63,15 +64,14 @@ export default {
     const { message } = discord;
     const targetUser = message.mentions.users.first() || message.author;
     const target = targetUser.id;
+    const trainerKey = discordAccountKey(target);
 
-    // Use a special lookup for Discord users in the shared DB
-    // For now, we'll try to find by discordId
     const [user, cardUser, pokemonCount, guild, trainer] = await Promise.all([
-      getUser(target, true), // Pass true to indicate Discord ID lookup
+      getUser(target, true),
       getCardUser(target, true),
-      countTrainerPokemon(target, true),
-      withTimeout(guildSystem.getUserPrimaryGuild(target, true), 2500),
-      withTimeout(getTrainer(target, true), 2500),
+      countTrainerPokemon(trainerKey),
+      withTimeout(guildSystem.getUserPrimaryGuild(trainerKey), 2500),
+      withTimeout(getTrainer(trainerKey), 2500),
     ]);
 
     if (!user && target === sender) {
@@ -111,7 +111,7 @@ export default {
         { name: "❀ Badges", value: `\`${gymProgress.completed}\``, inline: true },
         { name: "❀ Bio", value: profileBio }
       )
-      .setFooter({ text: "Aidoru Community • https://aidoru.zone.id" })
+      .setFooter({ text: "Aidoru Community • Shared with Kelin-MD2" })
       .setTimestamp();
 
     await message.reply({ embeds: [embed] });
