@@ -4,7 +4,8 @@
 
 import { downloadContentFromMessage } from "@whiskeysockets/baileys";
 import stickerFormatter from "wa-sticker-formatter";
-import settings from "../../settings.cjs";
+// Settings imported from env
+const botName = process.env.BOT_NAME || "AKIRA-DISCORD";
 
 const { Sticker, StickerTypes } = stickerFormatter;
 
@@ -77,7 +78,7 @@ export default {
       const packName = requestedPackName
         ? `${requestedPackName} | AIDORU`
         : "AIDORU";
-      const publisher = settings.botName || "AIDORU";
+      const publisher = botName;
 
       const stickerBuffer = await new Sticker(buffer, {
         pack: packName,
