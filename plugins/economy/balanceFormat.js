@@ -45,6 +45,11 @@ export function formatAccountBalance({
     rows.push("│", ...extraRows.map((value) => `│ ${value}`));
   }
 
+  if (footerLines.length) {
+    rows.push("│", `│ ✦ ${footerLines[0]}`);
+    rows.push(...footerLines.slice(1).map((line) => `│   ${line}`));
+  }
+
   return [
     "🎴 𝐀𝐂𝐂𝐎𝐔𝐍𝐓",
     "",
