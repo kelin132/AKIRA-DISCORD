@@ -30,6 +30,8 @@ cp .env.example .env
 | `PREFIX` | Command prefix (default: `.`) |
 | `DISCORD_ENABLE_GUILD_MEMBERS` | Set `true` only after enabling Server Members Intent in the Discord Developer Portal |
 | `PORT` | Port for the health check endpoint (default: `8080`) |
+| `AUTO_UPDATE` | Pull fast-forward updates from the current Git branch before each restart (default: `true`) |
+| `AUTO_UPDATE_BRANCH` | Optional branch override; otherwise the checked-out branch is used |
 
 ### 4. Running
 ```bash
@@ -42,6 +44,18 @@ npm run check
 # Run identity compatibility tests
 npm test
 ```
+
+### Automatic updates on restart
+
+`npm start` checks the configured `origin` remote before launching the bot. If the
+remote branch has newer commits, it fast-forwards the local checkout and starts
+the new version. If `package.json`, `package-lock.json`, or `pnpm-lock.yaml`
+changed, production dependencies are installed with `npm ci --omit=dev`.
+
+The updater never overwrites uncommitted local changes and skips updates when
+the local and remote branches have diverged. Set `AUTO_UPDATE=false` to disable
+the check. The Docker image uses `npm start`, so the same behavior applies when
+the container is restarted.
 
 ## 🔄 Synchronization with Kelin-MD2
 
