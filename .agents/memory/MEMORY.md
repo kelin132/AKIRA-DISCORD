@@ -1,0 +1,1 @@
+- [Native media dependencies](native-media-dependencies.md) — image packages require install lifecycle scripts and their system runtime libraries in container deployments.
