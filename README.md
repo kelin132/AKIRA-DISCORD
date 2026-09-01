@@ -56,6 +56,9 @@ changed, production dependencies are installed with `npm ci --omit=dev`.
 The same bootstrap also runs when the panel command is `node index.js` directly.
 If the panel does not include `.git`, it checks GitHub and downloads the latest
 branch archive instead. It preserves `.env`, runtime data, and `node_modules`.
+The npm lockfile is intentionally not committed because Replit-generated
+lockfiles can contain internal mirror URLs that are unreachable from external
+panels; startup installs use the public npm registry.
 
 The updater never overwrites uncommitted local changes and skips updates when
 the local and remote branches have diverged. Set `AUTO_UPDATE=false` to disable

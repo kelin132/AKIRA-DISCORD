@@ -164,7 +164,14 @@ function installDependencies(reason) {
   log(`${reason} Installing production dependencies...`);
   try {
     const command = existsSync(path.join(ROOT, "package-lock.json")) ? "ci" : "install";
-    execFileSync("npm", [command, "--omit=dev", "--no-audit", "--no-fund"], {
+    execFileSync("npm", [
+      command,
+      "--omit=dev",
+      "--no-audit",
+      "--no-fund",
+      "--registry=https://registry.npmjs.org",
+      "--replace-registry-host=always",
+    ], {
       cwd: ROOT,
       stdio: "inherit",
       env: process.env,
