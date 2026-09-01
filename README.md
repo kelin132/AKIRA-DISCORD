@@ -32,6 +32,7 @@ cp .env.example .env
 | `PORT` | Port for the health check endpoint (default: `8080`) |
 | `AUTO_UPDATE` | Pull fast-forward updates from the current Git branch before each restart (default: `true`) |
 | `AUTO_UPDATE_BRANCH` | Optional branch override; otherwise the checked-out branch is used |
+| `AUTO_INSTALL_DEPENDENCIES` | Restore missing or changed npm dependencies during startup (default: `true`) |
 
 ### 4. Running
 ```bash
@@ -51,6 +52,7 @@ npm test
 remote branch has newer commits, it fast-forwards the local checkout and starts
 the new version. If `package.json`, `package-lock.json`, or `pnpm-lock.yaml`
 changed, production dependencies are installed with `npm ci --omit=dev`.
+The same bootstrap also runs when the panel command is `node index.js` directly.
 
 The updater never overwrites uncommitted local changes and skips updates when
 the local and remote branches have diverged. Set `AUTO_UPDATE=false` to disable

@@ -1,11 +1,27 @@
 import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 
-const ROOT = path.resolve(new URL("..", import.meta.url).pathname);
-const UPDATE_ENABLED = process.env.AUTO_UPDATE !== "false";
-const UPDATE_BRANCH = process.env.AUTO_UPDATE_BRANCH || "";
+const ROOT = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
+
+function setting(name) {
+  if (process.env[name] !== undefined) return process.env[name];
+
+  try {
+    const line = readFileSync(path.join(ROOT, ".env"), "utf8")
+      .split(/\r?\n/)
+      .find((entry) => entry.trim().startsWith(`${name}=`));
+    return line ? line.slice(line.indexOf("=") + 1).trim().replace(/^['"]|['"]$/g, "") : "";
+  } catch {
+    return "";
+  }
+}
+
+const UPDATE_ENABLED = setting("AUTO_UPDATE") !== "false";
+const UPDATE_BRANCH = setting("AUTO_UPDATE_BRANCH");
+const INSTALL_ENABLED = setting("AUTO_INSTALL_DEPENDENCIES") !== "false";
 
 function git(args, options = {}) {
   return execFileSync("git", args, {
@@ -28,6 +44,18 @@ function hasGitRepository() {
   return existsSync(path.join(ROOT, ".git"));
 }
 
+function dependenciesAvailable() {
+  try {
+    const packageJson = JSON.parse(readFileSync(path.join(ROOT, "package.json"), "utf8"));
+    const dependencies = Object.keys(packageJson.dependencies || {});
+    return dependencies.every((name) =>
+      existsSync(path.join(ROOT, "node_modules", name, "package.json"))
+    );
+  } catch {
+    return false;
+  }
+}
+
 function dependencyFilesChanged(from, to) {
   const files = git(["diff", "--name-only", from, to])
     .split("\n")
@@ -41,10 +69,11 @@ function dependencyFilesChanged(from, to) {
   ].includes(file));
 }
 
-function installDependencies() {
-  log("Dependency manifests changed; installing production dependencies...");
+function installDependencies(reason) {
+  log(`${reason} Installing production dependencies...`);
   try {
-    execFileSync("npm", ["ci", "--omit=dev", "--no-audit", "--no-fund"], {
+    const command = existsSync(path.join(ROOT, "package-lock.json")) ? "ci" : "install";
+    execFileSync("npm", [command, "--omit=dev", "--no-audit", "--no-fund"], {
       cwd: ROOT,
       stdio: "inherit",
       env: process.env,
@@ -58,30 +87,30 @@ function installDependencies() {
 function update() {
   if (!UPDATE_ENABLED) {
     log("Disabled with AUTO_UPDATE=false.");
-    return;
+    return false;
   }
 
   if (!hasGitRepository()) {
     log("No .git directory found; starting without an update.");
-    return;
+    return false;
   }
 
   const branch = UPDATE_BRANCH || git(["branch", "--show-current"]);
   if (!branch) {
     warn("Repository is detached; starting without an update.");
-    return;
+    return false;
   }
 
   const dirtyFiles = git(["status", "--porcelain"]);
   if (dirtyFiles) {
     warn("Local changes detected; skipping update to avoid overwriting them.");
-    return;
+    return false;
   }
 
   const remote = git(["remote", "get-url", "origin"]);
   if (!remote) {
     warn("No origin remote configured; starting without an update.");
-    return;
+    return false;
   }
 
   const before = git(["rev-parse", "HEAD"]);
@@ -91,7 +120,7 @@ function update() {
     git(["fetch", "--quiet", "origin", branch]);
   } catch (error) {
     warn(`Could not fetch origin/${branch}: ${error.stderr?.trim() || error.message}`);
-    return;
+    return false;
   }
 
   const remoteRef = `origin/${branch}`;
@@ -103,31 +132,43 @@ function update() {
 
   if (behind === 0) {
     log(ahead > 0 ? `Local branch is ahead of origin/${branch}; leaving it unchanged.` : "Already up to date.");
-    return;
+    return false;
   }
 
   if (ahead > 0) {
     warn(`Branches diverged (${ahead} local, ${behind} remote); skipping automatic update.`);
-    return;
+    return false;
   }
 
   try {
     git(["merge", "--ff-only", remoteRef]);
   } catch (error) {
     warn(`Fast-forward failed; starting the current version: ${error.stderr?.trim() || error.message}`);
-    return;
+    return false;
   }
 
   const after = git(["rev-parse", "HEAD"]);
   log(`Updated ${before.slice(0, 7)} → ${after.slice(0, 7)}.`);
 
-  if (dependencyFilesChanged(before, after)) {
-    installDependencies();
+  return dependencyFilesChanged(before, after);
+}
+
+function run() {
+  const manifestsChanged = update();
+  if (!INSTALL_ENABLED) {
+    log("Dependency installation disabled with AUTO_INSTALL_DEPENDENCIES=false.");
+    return;
+  }
+
+  if (manifestsChanged) {
+    installDependencies("Dependency manifests changed.");
+  } else if (!dependenciesAvailable()) {
+    installDependencies("Required dependencies are missing.");
   }
 }
 
 try {
-  update();
+  run();
 } catch (error) {
   if (error.fatalUpdate) {
     warn("Dependency installation failed; refusing to start with an incomplete update.");

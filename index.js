@@ -1,9 +1,14 @@
-import "dotenv/config";
-import { connectDiscord } from "./lib/discord.mjs";
-import { loadPlugins, routeDiscordMessage } from "./lib/pluginManager.mjs";
-import { log } from "./lib/logger.mjs";
-import { closeDb, connectDb } from "./lib/mongo.mjs";
-import { startHealthServer } from "./lib/health.mjs";
+// Run this before importing any bot module. Some plugins have native or
+// optional dependencies, and direct `node index.js` panel commands otherwise
+// fail before npm start has a chance to install an updated dependency tree.
+await import("./scripts/auto-update.mjs");
+await import("dotenv/config");
+
+const { connectDiscord } = await import("./lib/discord.mjs");
+const { loadPlugins, routeDiscordMessage } = await import("./lib/pluginManager.mjs");
+const { log } = await import("./lib/logger.mjs");
+const { closeDb, connectDb } = await import("./lib/mongo.mjs");
+const { startHealthServer } = await import("./lib/health.mjs");
 
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const PREFIX = process.env.PREFIX || ".";
