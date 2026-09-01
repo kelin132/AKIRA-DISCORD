@@ -1,7 +1,17 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
@@ -22,6 +32,8 @@ function setting(name) {
 const UPDATE_ENABLED = setting("AUTO_UPDATE") !== "false";
 const UPDATE_BRANCH = setting("AUTO_UPDATE_BRANCH");
 const INSTALL_ENABLED = setting("AUTO_INSTALL_DEPENDENCIES") !== "false";
+const UPDATE_REPOSITORY = setting("AUTO_UPDATE_REPOSITORY") || "kelin132/AKIRA-DISCORD";
+const UPDATE_MARKER = ".auto-update-commit";
 
 function git(args, options = {}) {
   return execFileSync("git", args, {
@@ -44,6 +56,14 @@ function hasGitRepository() {
   return existsSync(path.join(ROOT, ".git"));
 }
 
+function readText(file) {
+  try {
+    return readFileSync(file, "utf8");
+  } catch {
+    return "";
+  }
+}
+
 function dependenciesAvailable() {
   try {
     const packageJson = JSON.parse(readFileSync(path.join(ROOT, "package.json"), "utf8"));
@@ -53,6 +73,77 @@ function dependenciesAvailable() {
     );
   } catch {
     return false;
+  }
+}
+
+async function githubRequest(url) {
+  const response = await fetch(url, {
+    headers: {
+      Accept: "application/vnd.github+json",
+      "User-Agent": "AKIRA-DISCORD-auto-updater",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`GitHub returned HTTP ${response.status} for ${url}`);
+  }
+  return response;
+}
+
+async function updateWithoutGit() {
+  const branch = UPDATE_BRANCH || "master";
+  const apiUrl = `https://api.github.com/repos/${UPDATE_REPOSITORY}/commits/${encodeURIComponent(branch)}`;
+  const commitResponse = await githubRequest(apiUrl);
+  const commit = await commitResponse.json();
+  const remoteSha = commit.sha;
+  if (!remoteSha) throw new Error("GitHub response did not include a commit SHA");
+
+  const markerPath = path.join(ROOT, UPDATE_MARKER);
+  if (readText(markerPath).trim() === remoteSha) {
+    log(`No .git directory found; archive is already at ${remoteSha.slice(0, 7)}.`);
+    return false;
+  }
+
+  log(`No .git directory found; downloading ${UPDATE_REPOSITORY}@${branch}...`);
+  const archiveUrl = `https://github.com/${UPDATE_REPOSITORY}/archive/refs/heads/${encodeURIComponent(branch)}.tar.gz`;
+  const archiveResponse = await githubRequest(archiveUrl);
+  const archive = Buffer.from(await archiveResponse.arrayBuffer());
+  const temporaryRoot = mkdtempSync(path.join(tmpdir(), "akira-update-"));
+  const archivePath = path.join(temporaryRoot, "source.tar.gz");
+
+  try {
+    writeFileSync(archivePath, archive);
+    execFileSync("tar", ["-xzf", archivePath, "-C", temporaryRoot], { stdio: "ignore" });
+
+    const sourceRoot = readdirSync(temporaryRoot)
+      .map((entry) => path.join(temporaryRoot, entry))
+      .find((entry) => statSync(entry).isDirectory());
+    if (!existsSync(sourceRoot)) {
+      throw new Error("Downloaded archive did not contain the expected project directory");
+    }
+
+    const packageBefore = readText(path.join(ROOT, "package.json"));
+    const lockBefore = readText(path.join(ROOT, "package-lock.json"));
+    // Runtime credentials, data, and installed packages belong to the panel,
+    // not to the source archive, so never replace them during an update.
+    cpSync(sourceRoot, ROOT, {
+      recursive: true,
+      filter: (source) => ![
+        path.join(sourceRoot, ".env"),
+        path.join(sourceRoot, ".git"),
+        path.join(sourceRoot, "node_modules"),
+        path.join(sourceRoot, "data"),
+      ].some((excluded) => source === excluded || source.startsWith(`${excluded}${path.sep}`)),
+    });
+
+    writeFileSync(markerPath, `${remoteSha}\n`);
+    log(`Updated source archive to ${remoteSha.slice(0, 7)}.`);
+    return (
+      packageBefore !== readText(path.join(ROOT, "package.json")) ||
+      lockBefore !== readText(path.join(ROOT, "package-lock.json"))
+    );
+  } finally {
+    rmSync(temporaryRoot, { recursive: true, force: true });
   }
 }
 
@@ -153,8 +244,18 @@ function update() {
   return dependencyFilesChanged(before, after);
 }
 
-function run() {
-  const manifestsChanged = update();
+async function run() {
+  let manifestsChanged = false;
+  if (UPDATE_ENABLED && !hasGitRepository()) {
+    try {
+      manifestsChanged = await updateWithoutGit();
+    } catch (error) {
+      warn(`GitHub archive update failed; starting the current version: ${error.message}`);
+    }
+  } else {
+    manifestsChanged = update();
+  }
+
   if (!INSTALL_ENABLED) {
     log("Dependency installation disabled with AUTO_INSTALL_DEPENDENCIES=false.");
     return;
@@ -168,7 +269,7 @@ function run() {
 }
 
 try {
-  run();
+  await run();
 } catch (error) {
   if (error.fatalUpdate) {
     warn("Dependency installation failed; refusing to start with an incomplete update.");
