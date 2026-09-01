@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libjpeg-dev \
     libgif-dev \
     librsvg2-dev \
+    uuid-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -27,6 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpangocairo-1.0-0 \
     libgif7 \
     librsvg2-2 \
+    libuuid1 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

@@ -25,9 +25,10 @@ cp .env.example .env
 | Variable | Description |
 |----------|-------------|
 | `DISCORD_TOKEN` | Your Discord bot token |
-| `MONGODB_URI` | Connection string for the shared Kelin-MD2 database |
-| `OWNER_ID` | Your Discord User ID for admin permissions |
+| `MONGO_URI` | Connection string for the shared Kelin-MD2 database |
+| `DISCORD_OWNER_ID` | Your Discord User ID for admin permissions |
 | `PREFIX` | Command prefix (default: `.`) |
+| `DISCORD_ENABLE_GUILD_MEMBERS` | Set `true` only after enabling Server Members Intent in the Discord Developer Portal |
 | `PORT` | Port for the health check endpoint (default: `8080`) |
 
 ### 4. Running
