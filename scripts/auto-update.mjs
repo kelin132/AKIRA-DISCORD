@@ -76,6 +76,15 @@ function dependenciesAvailable() {
   }
 }
 
+function removeInternalLockfile() {
+  const lockPath = path.join(ROOT, "package-lock.json");
+  const lockContents = readText(lockPath);
+  if (lockContents.includes("package-firewall.replit.local")) {
+    rmSync(lockPath, { force: true });
+    log("Removed an incompatible Replit-internal package lockfile.");
+  }
+}
+
 async function githubRequest(url) {
   const response = await fetch(url, {
     headers: {
@@ -252,6 +261,8 @@ function update() {
 }
 
 async function run() {
+  removeInternalLockfile();
+
   let manifestsChanged = false;
   if (UPDATE_ENABLED && !hasGitRepository()) {
     try {
