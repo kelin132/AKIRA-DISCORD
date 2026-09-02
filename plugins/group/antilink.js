@@ -13,6 +13,7 @@
  */
 import { groupSettings } from "../../lib/groupSettings.js";
 import { resetLinkWarns } from "./antilinkHandler.js";
+import { discordSettingsKey } from "../../lib/discordGroupEvents.mjs";
 
 export default {
   name: "antilink",
@@ -23,7 +24,58 @@ export default {
   cooldown: 5,
   isAdmin: true,
 
-  async run({ sock, msg, args }) {
+  async run({ sock, msg, args, discord }) {
+    const discordMessage = discord?.message;
+    if (discordMessage?.guild) {
+      const key = discordSettingsKey(discordMessage.guild.id);
+      const settings = groupSettings.get(key);
+      const option = args[0]?.toLowerCase();
+
+      if (option === "off") {
+        groupSettings.set(key, { antilink: false });
+        return discordMessage.reply("✅ Anti-link protection is disabled for this server.");
+      }
+
+      if (option === "setwarn") {
+        const limit = Number.parseInt(args[1], 10);
+        if (!Number.isInteger(limit) || limit < 1 || limit > 20) {
+          return discordMessage.reply("❌ Choose a warning limit from 1 to 20.");
+        }
+        groupSettings.set(key, { antilinkMaxWarns: limit });
+        return discordMessage.reply(`✅ Anti-link warning limit set to ${limit}.`);
+      }
+
+      if (option === "resetwarn") {
+        const target = discordMessage.mentions.users.first();
+        if (!target) return discordMessage.reply("❌ Mention the member whose warnings should be reset.");
+        const warnings = { ...(settings.discordLinkWarns || {}) };
+        delete warnings[target.id];
+        groupSettings.set(key, { discordLinkWarns: warnings });
+        return discordMessage.reply(`✅ Anti-link warnings reset for <@${target.id}>.`);
+      }
+
+      if (option === "on") {
+        const action = args[1]?.toLowerCase() || "delete";
+        if (!["delete", "kick", "warn"].includes(action)) {
+          return discordMessage.reply("❌ Use `.antilink on delete`, `.antilink on kick`, or `.antilink on warn`.");
+        }
+        groupSettings.set(key, {
+          antilink: true,
+          antilinkAction: action,
+          antilinkMaxWarns: Number(settings.antilinkMaxWarns) || 3,
+        });
+        return discordMessage.reply(`✅ Anti-link protection enabled with **${action}** mode.`);
+      }
+
+      const status = settings.antilink
+        ? `✅ ON — ${settings.antilinkAction || "delete"}`
+        : "❌ OFF";
+      return discordMessage.reply(
+        `🔗 **Discord Anti-Link**\n\nStatus: ${status}\nWarn limit: ${settings.antilinkMaxWarns || 3}\n\n` +
+        "Use `.antilink on delete|kick|warn`, `.antilink setwarn <number>`, or `.antilink off`.",
+      );
+    }
+
     const jid = msg.key.remoteJid;
 
     if (!jid.endsWith("@g.us")) {

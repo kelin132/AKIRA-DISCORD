@@ -5,6 +5,7 @@
  * Actual goodbye sending is handled by lib/groupEventHandler.mjs
  */
 import { groupSettings } from "../../lib/groupSettings.js";
+import { discordSettingsKey } from "../../lib/discordGroupEvents.mjs";
 
 export default {
   name: "setgoodbye",
@@ -15,7 +16,30 @@ export default {
   cooldown: 5,
   isAdmin: true,
 
-  async run({ sock, msg, args }) {
+  async run({ sock, msg, args, discord }) {
+    const discordMessage = discord?.message;
+    if (discordMessage?.guild) {
+      const key = discordSettingsKey(discordMessage.guild.id);
+      const text = args.join(" ").trim();
+      const settings = groupSettings.get(key);
+      if (!text) {
+        return discordMessage.reply(
+          `📝 **Goodbye Message**\n\nCurrent message:\n${settings.goodbye || "Default goodbye message"}\n\n` +
+          "Usage: `.setgoodbye Goodbye @user — we will miss you in @group`",
+        );
+      }
+      if (text.toLowerCase() === "reset") {
+        delete settings.goodbye;
+        groupSettings.set(key, settings);
+        return discordMessage.reply("🔄 Goodbye message reset to the default.");
+      }
+      groupSettings.set(key, {
+        goodbye: text,
+        goodbyeChannelId: discordMessage.channel.id,
+      });
+      return discordMessage.reply("✅ Goodbye message saved. Use @user, @group, and @count as placeholders.");
+    }
+
     const jid = msg.key.remoteJid;
 
     if (!jid.endsWith("@g.us")) {

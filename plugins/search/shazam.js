@@ -186,15 +186,98 @@ function formatResult(music, youtubeUrl) {
   return lines.join("\n");
 }
 
+function getDiscordAudioAttachment(message) {
+  const attachments = message?.attachments;
+  return attachments?.find((attachment) => {
+    const type = String(attachment.contentType || "").toLowerCase();
+    const name = String(attachment.name || attachment.url || "").toLowerCase();
+    return type.startsWith("audio/") ||
+      type.startsWith("video/") ||
+      /\.(mp3|wav|ogg|m4a|aac|flac|mp4|mov|webm)(?:\?|$)/i.test(name);
+});
+}
+
+async function downloadDiscordAudio(message) {
+  let sourceMessage = message;
+  let attachment = getDiscordAudioAttachment(sourceMessage);
+
+  if (!attachment && sourceMessage.reference?.messageId && typeof sourceMessage.fetchReference === "function") {
+    sourceMessage = await sourceMessage.fetchReference();
+    attachment = getDiscordAudioAttachment(sourceMessage);
+  }
+
+  if (!attachment?.url) return null;
+  if (attachment.size && attachment.size > 30 * 1024 * 1024) {
+    throw new Error("The Discord clip is larger than 30 MB.");
+  }
+
+  const response = await fetch(attachment.url);
+  if (!response.ok) throw new Error(`Discord media download returned HTTP ${response.status}.`);
+  return {
+    buffer: Buffer.from(await response.arrayBuffer()),
+    mimetype: attachment.contentType || "",
+  };
+}
+
+function formatDiscordResult(music, youtubeUrl) {
+  return formatResult(music, youtubeUrl).replace(/\*([^*]+)\*/g, "**$1**");
+}
+
 export default {
   name: "shazam",
   description: "Identify a song from a short audio or video clip",
   category: "search",
-  usage: ".shazam (reply to audio/video)",
+  usage: ".shazam (attach or reply to audio/video)",
   aliases: ["whatsong", "findsong"],
   cooldown: 15,
 
-  async run({ sock, msg }) {
+  async run({ sock, msg, discord }) {
+    const discordMessage = discord?.message;
+    if (discordMessage) {
+      let media;
+      try {
+        media = await downloadDiscordAudio(discordMessage);
+      } catch (err) {
+        console.error("[shazam] Discord media download failed:", err);
+        return discordMessage.reply(`❌ I couldn't download that clip. ${err.message}`);
+      }
+
+      if (!media) {
+        return discordMessage.reply(
+          "🎵 Attach an audio/video clip or reply to one with `.shazam` (maximum 30 MB; the first 15 seconds are analyzed).",
+        );
+      }
+
+      await discordMessage.react("🔎").catch(() => {});
+      await discordMessage.reply("🔎 Listening for the song...");
+
+      try {
+        const clip = await trimToAudioClip(media.buffer);
+        const identified = await identifyWithACRCloud(clip);
+        if (identified?.status?.code !== 0 || !identified?.metadata?.music?.length) {
+          return discordMessage.reply("❌ I couldn't recognize that song. Try a clearer 10–15 second clip.");
+        }
+
+        const music = identified.metadata.music[0];
+        const query = [music.title, music.artists?.[0]?.name].filter(Boolean).join(" ");
+        let youtubeUrl = "";
+        if (query) {
+          try {
+            const search = await yts(query);
+            youtubeUrl = search?.videos?.[0]?.url || "";
+          } catch (error) {
+            console.error("[shazam] Discord YouTube lookup failed:", error);
+          }
+        }
+        return discordMessage.reply(formatDiscordResult(music, youtubeUrl));
+      } catch (err) {
+        console.error("[shazam] Discord recognition failed:", err);
+        return discordMessage.reply("⚠️ Song recognition failed. Try a clearer or shorter clip.");
+      } finally {
+        await discordMessage.reactions.cache.get("🔎")?.users.remove(discordMessage.client.user.id).catch(() => {});
+      }
+    }
+
     const jid = msg.key.remoteJid;
     // Credentials fall back to built-in defaults — no panel config needed
     const host = (process.env.ACRCLOUD_HOST || "identify-eu-west-1.acrcloud.com").trim();

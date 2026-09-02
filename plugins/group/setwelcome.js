@@ -6,6 +6,7 @@
  * Actual welcome sending is handled by lib/groupEventHandler.mjs
  */
 import { groupSettings } from "../../lib/groupSettings.js";
+import { discordSettingsKey } from "../../lib/discordGroupEvents.mjs";
 
 export default {
   name: "setwelcome",
@@ -16,7 +17,30 @@ export default {
   cooldown: 5,
   isAdmin: true,
 
-  async run({ sock, msg, args }) {
+  async run({ sock, msg, args, discord }) {
+    const discordMessage = discord?.message;
+    if (discordMessage?.guild) {
+      const key = discordSettingsKey(discordMessage.guild.id);
+      const text = args.join(" ").trim();
+      const settings = groupSettings.get(key);
+      if (!text) {
+        return discordMessage.reply(
+          `📝 **Welcome Message**\n\nCurrent message:\n${settings.welcome || "Default welcome message"}\n\n` +
+          "Usage: `.setwelcome Welcome @user to @group — member @count`",
+        );
+      }
+      if (text.toLowerCase() === "reset") {
+        delete settings.welcome;
+        groupSettings.set(key, settings);
+        return discordMessage.reply("🔄 Welcome message reset to the default.");
+      }
+      groupSettings.set(key, {
+        welcome: text,
+        welcomeChannelId: discordMessage.channel.id,
+      });
+      return discordMessage.reply("✅ Welcome message saved. Use @user, @group, and @count as placeholders.");
+    }
+
     const jid = msg.key.remoteJid;
 
     if (!jid.endsWith("@g.us")) {

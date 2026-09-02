@@ -6,6 +6,12 @@ await import("dotenv/config");
 
 const { connectDiscord } = await import("./lib/discord.mjs");
 const { loadPlugins, routeDiscordMessage, routeDiscordInteraction } = await import("./lib/pluginManager.mjs");
+const { initGroupSettings } = await import("./lib/groupSettings.js");
+const {
+  handleDiscordAntiLink,
+  handleDiscordMemberJoin,
+  handleDiscordMemberLeave,
+} = await import("./lib/discordGroupEvents.mjs");
 const { log } = await import("./lib/logger.mjs");
 const { closeDb, connectDb } = await import("./lib/mongo.mjs");
 const { startHealthServer } = await import("./lib/health.mjs");
@@ -33,14 +39,27 @@ async function start() {
   try {
     await connectDb();
     log("info", "Connected to the shared Kelin-MD2 MongoDB database");
+    await initGroupSettings();
 
     const { totalPlugins, totalCommands } = await loadPlugins(PREFIX);
     log("info", `Plugins loaded: ${totalPlugins} plugins, ${totalCommands} commands`);
 
     const client = await connectDiscord(DISCORD_TOKEN);
     client.on("messageCreate", (message) => {
-      routeDiscordMessage(client, message, PREFIX, OWNER_ID).catch((error) => {
+      handleDiscordAntiLink(message)
+        .then((blocked) => blocked || routeDiscordMessage(client, message, PREFIX, OWNER_ID))
+        .catch((error) => {
         log("error", `Unhandled message error: ${error.stack || error.message}`);
+      });
+    });
+    client.on("guildMemberAdd", (member) => {
+      handleDiscordMemberJoin(member).catch((error) => {
+        log("error", `Welcome handler failed: ${error.stack || error.message}`);
+      });
+    });
+    client.on("guildMemberRemove", (member) => {
+      handleDiscordMemberLeave(member).catch((error) => {
+        log("error", `Goodbye handler failed: ${error.stack || error.message}`);
       });
     });
     client.on("interactionCreate", (interaction) => {

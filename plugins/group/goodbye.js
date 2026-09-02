@@ -4,6 +4,7 @@
  * Actual goodbye sending is handled by lib/groupEventHandler.mjs
  */
 import { groupSettings } from "../../lib/groupSettings.js";
+import { discordSettingsKey } from "../../lib/discordGroupEvents.mjs";
 
 export default {
   name: "goodbye",
@@ -14,7 +15,30 @@ export default {
   cooldown: 5,
   isAdmin: true,
 
-  async run({ sock, msg, args }) {
+  async run({ sock, msg, args, discord }) {
+    const discordMessage = discord?.message;
+    if (discordMessage?.guild) {
+      const key = discordSettingsKey(discordMessage.guild.id);
+      const settings = groupSettings.get(key);
+      const toggle = args[0]?.toLowerCase();
+      if (!toggle || !["on", "off"].includes(toggle)) {
+        return discordMessage.reply(
+          `👋 **Discord Goodbye Messages**\n\nStatus: ${settings.goodbyeEnabled ? "✅ ON" : "❌ OFF"}\n` +
+          `Channel: ${settings.goodbyeChannelId ? `<#${settings.goodbyeChannelId}>` : "Server system channel"}\n\n` +
+          "Use `.goodbye on` or `.goodbye off`. Use `.setgoodbye <message>` to customize the message.",
+        );
+      }
+
+      const enabled = toggle === "on";
+      groupSettings.set(key, {
+        goodbyeEnabled: enabled,
+        goodbyeChannelId: discordMessage.channel.id,
+      });
+      return discordMessage.reply(enabled
+        ? "✅ Goodbye messages enabled when members leave the server."
+        : "❌ Goodbye messages disabled.");
+    }
+
     const jid = msg.key.remoteJid;
 
     if (!jid.endsWith("@g.us")) {

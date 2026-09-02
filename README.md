@@ -82,6 +82,16 @@ code expires after 10 minutes, is stored hashed, and can only be used once. Both
 bots must use the same `MONGO_URI`. The existing `.link` command remains reserved
 for the Discord server invite.
 
+### Discord server features
+
+The Discord-native server commands include `.antilink`, `.welcome`, `.setwelcome`,
+`.goodbye`, `.setgoodbye`, and `.shazam`. Anti-link protection monitors Discord
+messages and can delete, warn, or kick. Welcome and goodbye messages use the
+placeholders `@user`, `@group`, and `@count`.
+
+To receive member join/leave events, enable the Server Members Intent in the
+Discord Developer Portal and set `DISCORD_ENABLE_GUILD_MEMBERS=true`.
+
 ## 🛠 Deployment
 
 This repository includes a production-ready `Dockerfile` optimized for `node-canvas` rendering.

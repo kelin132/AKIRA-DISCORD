@@ -4,6 +4,7 @@
  * Actual welcome sending is handled by lib/groupEventHandler.mjs
  */
 import { groupSettings } from "../../lib/groupSettings.js";
+import { discordSettingsKey } from "../../lib/discordGroupEvents.mjs";
 
 export default {
   name: "welcome",
@@ -14,7 +15,30 @@ export default {
   cooldown: 5,
   isAdmin: true,
 
-  async run({ sock, msg, args }) {
+  async run({ sock, msg, args, discord }) {
+    const discordMessage = discord?.message;
+    if (discordMessage?.guild) {
+      const key = discordSettingsKey(discordMessage.guild.id);
+      const settings = groupSettings.get(key);
+      const toggle = args[0]?.toLowerCase();
+      if (!toggle || !["on", "off"].includes(toggle)) {
+        return discordMessage.reply(
+          `👋 **Discord Welcome Messages**\n\nStatus: ${settings.welcomeEnabled ? "✅ ON" : "❌ OFF"}\n` +
+          `Channel: ${settings.welcomeChannelId ? `<#${settings.welcomeChannelId}>` : "Server system channel"}\n\n` +
+          "Use `.welcome on` or `.welcome off`. Use `.setwelcome <message>` to customize the message.",
+        );
+      }
+
+      const enabled = toggle === "on";
+      groupSettings.set(key, {
+        welcomeEnabled: enabled,
+        welcomeChannelId: discordMessage.channel.id,
+      });
+      return discordMessage.reply(enabled
+        ? "✅ Welcome messages enabled for new server members."
+        : "❌ Welcome messages disabled.");
+    }
+
     const jid = msg.key.remoteJid;
 
     if (!jid.endsWith("@g.us")) {
