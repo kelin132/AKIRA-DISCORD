@@ -107,74 +107,31 @@ function chunkForDiscord(text, maxLength = 1900) {
   return chunks.length ? chunks : [""];
 }
 
-const MAX_CATEGORY_BUTTONS = 20;
-
 function discordMenuPayload(token, session) {
-  const { categories, categoryTexts, selectedCategory, categoryOffset, runtime } = session;
-  const selectedText = selectedCategory
-    ? categoryTexts.get(selectedCategory)
-    : [
-        `*Hello ${session.mention}, I am ${runtime.botName}* 👋`,
-        "",
-        "Choose a category below to view its Discord commands.",
-        "",
-        "Each button updates this message, so you can switch categories without filling the channel with menus.",
-      ].join("\n");
-  const visibleCategories = categories.slice(categoryOffset, categoryOffset + MAX_CATEGORY_BUTTONS);
-  const rows = [];
-
-  for (let start = 0; start < visibleCategories.length; start += 5) {
-    const row = new ActionRowBuilder();
-    for (const category of visibleCategories.slice(start, start + 5)) {
-      row.addComponents(
-        new ButtonBuilder()
-          .setCustomId(`menu:${token}:cat:${category}`)
-          .setLabel(categoryTitles[category] || category.toUpperCase())
-          .setEmoji(categoryEmojis[category] || "📌")
-          .setStyle(selectedCategory === category ? ButtonStyle.Primary : ButtonStyle.Secondary),
-      );
-    }
-    rows.push(row);
-  }
-
-  const hasCategoryNavigation = categories.length > MAX_CATEGORY_BUTTONS;
-  if (hasCategoryNavigation || selectedCategory) {
-    const navigation = new ActionRowBuilder();
-    if (hasCategoryNavigation) {
-      navigation.addComponents(
-        new ButtonBuilder()
-          .setCustomId(`menu:${token}:nav:previous`)
-          .setLabel("◀ More")
-          .setStyle(ButtonStyle.Secondary)
-          .setDisabled(categoryOffset === 0),
-        new ButtonBuilder()
-          .setCustomId(`menu:${token}:nav:next`)
-          .setLabel("More ▶")
-          .setStyle(ButtonStyle.Secondary)
-          .setDisabled(categoryOffset + MAX_CATEGORY_BUTTONS >= categories.length),
-      );
-    }
-    if (selectedCategory) {
-      navigation.addComponents(
-        new ButtonBuilder()
-          .setCustomId(`menu:${token}:home`)
-          .setLabel("⌂ Categories")
-          .setStyle(ButtonStyle.Success),
-      );
-    }
-    rows.push(navigation);
-  }
+  const { categories, categoryTexts, categoryIndex, runtime } = session;
+  const category = categories[categoryIndex];
+  const title = categoryTitles[category] || category.toUpperCase();
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`menu:${token}:previous`)
+      .setLabel("◀ Previous")
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(categoryIndex === 0),
+    new ButtonBuilder()
+      .setCustomId(`menu:${token}:next`)
+      .setLabel("Next ▶")
+      .setStyle(ButtonStyle.Primary)
+      .setDisabled(categoryIndex === categories.length - 1),
+  );
 
   const embed = new EmbedBuilder()
     .setColor("#9B87F5")
-    .setTitle(`${runtime.botName} • COMMANDS`)
-    .setDescription(selectedText)
+    .setTitle(`${runtime.botName} • ${title}`)
+    .setDescription(categoryTexts.get(category) || "No commands are available in this category.")
     .setFooter({
-      text: selectedCategory
-        ? `${categoryTitles[selectedCategory] || selectedCategory} • Choose another category below`
-        : "Choose a category below",
+      text: `Category ${categoryIndex + 1}/${categories.length} • ${title} • Use the buttons to switch categories`,
     });
-  return { embeds: [embed], components: rows };
+  return { embeds: [embed], components: [row] };
 }
 
 export default {
@@ -266,15 +223,12 @@ export default {
         categoryTexts.set(cat, chunkForDiscord(categoryText, 3800)[0]);
       }
 
+      const categories = [...categoryTexts.keys()];
       const session = {
         userId: discord.message.author.id,
-        categories: [...categoryTexts.keys()],
+        categories,
         categoryTexts,
-        selectedCategory: requestedCategory || null,
-        categoryOffset: Math.max(
-          0,
-          Math.floor(Math.max(0, sortedCats.indexOf(requestedCategory)) / MAX_CATEGORY_BUTTONS) * MAX_CATEGORY_BUTTONS,
-        ),
+        categoryIndex: Math.max(0, categories.indexOf(requestedCategory)),
         runtime,
         mention,
         expiresAt: Date.now() + 10 * 60 * 1000,
@@ -305,28 +259,13 @@ export default {
       return interaction.reply({ content: "❌ This menu belongs to another user. Send `.menu` to open your own.", ephemeral: true });
     }
 
-    if (parts[2] === "cat" && parts[3]) {
-      if (!session.categories.includes(parts[3])) {
-        return interaction.reply({ content: "❌ That category is no longer available.", ephemeral: true });
-      }
-      session.selectedCategory = parts[3];
-      session.categoryOffset =
-        Math.floor(session.categories.indexOf(parts[3]) / MAX_CATEGORY_BUTTONS) * MAX_CATEGORY_BUTTONS;
-      return interaction.update(discordMenuPayload(parts[1], session));
-    }
-
-    if (parts[2] === "home") {
-      session.selectedCategory = null;
-      return interaction.update(discordMenuPayload(parts[1], session));
-    }
-
-    if (parts[2] === "nav") {
-      const direction = parts[3] === "next" ? MAX_CATEGORY_BUTTONS : -MAX_CATEGORY_BUTTONS;
-      session.categoryOffset = Math.max(
+    if (parts[2] === "previous" || parts[2] === "next") {
+      const direction = parts[2] === "next" ? 1 : -1;
+      session.categoryIndex = Math.max(
         0,
         Math.min(
-          Math.floor((session.categories.length - 1) / MAX_CATEGORY_BUTTONS) * MAX_CATEGORY_BUTTONS,
-          session.categoryOffset + direction,
+          session.categories.length - 1,
+          session.categoryIndex + direction,
         ),
       );
       return interaction.update(discordMenuPayload(parts[1], session));
