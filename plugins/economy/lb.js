@@ -18,25 +18,86 @@ const WEALTH_TIERS = [
   ["🔥", "Flame Bearer"], ["💧", "Tide Turner"], ["🌿", "Forest Spirit"], ["⭐", "Chosen One"],
 ];
 const WEALTH_SEPARATOR = "  ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈";
-const LEADERBOARD_CACHE_TTL = 30_000;
-const leaderboardCache = new Map();
+const WEALTH_CACHE_TTL_MS = 15_000;
+let wealthCache = null;
+let wealthRefresh = null;
 const formatMoney = (value) => `$${Number(value || 0).toLocaleString()}`;
+const numericField = (field) => ({
+  $convert: { input: { $ifNull: [field, 0] }, to: "double", onError: 0, onNull: 0 },
+});
 
-function getCachedText(key) {
-  const cached = leaderboardCache.get(key);
-  if (!cached || cached.expiresAt <= Date.now()) {
-    leaderboardCache.delete(key);
-    return null;
+async function refreshWealthText(db) {
+  // Share one refresh when several groups request .lb together. Without this,
+  // each simultaneous command repeats the full users sort and enrichment reads.
+  if (!wealthRefresh) {
+    wealthRefresh = (async () => {
+      const users = await db.collection("users").aggregate([
+        { $match: { registered: true } },
+        {
+          $project: {
+            _id: 1,
+            name: 1,
+            totalWealth: { $add: [numericField("$money"), numericField("$bank")] },
+          },
+        },
+        { $sort: { totalWealth: -1, _id: 1 } },
+        { $limit: 10 },
+      ]).toArray();
+
+      if (!users.length) return "💰 No registered players yet!";
+
+      const userJids = users
+        .map((user) => String(user._id || user.jid || user.whatsappNumber || ""))
+        .filter(Boolean);
+      const [cardDocs, pokemonDocs, companyDocs] = await Promise.all([
+        db.collection("mn_users").find({
+          $or: [{ whatsappNumber: { $in: userJids } }, { userId: { $in: userJids } }],
+        }, { projection: { userId: 1, whatsappNumber: 1, cards: 1 } }).toArray(),
+        db.collection("pokemon_owned").aggregate([
+          { $match: { ownerJid: { $in: userJids } } },
+          { $group: { _id: "$ownerJid", total: { $sum: 1 } } },
+        ]).toArray(),
+        db.collection("companies").find({ ownerId: { $in: userJids } }, {
+          projection: { ownerId: 1, name: 1 },
+        }).toArray(),
+      ]);
+      const cardCounts = new Map();
+      for (const doc of cardDocs) {
+        const count = Array.isArray(doc.cards) ? doc.cards.length : 0;
+        for (const key of [doc.whatsappNumber, doc.userId].filter(Boolean)) {
+          const normalized = String(key);
+          cardCounts.set(normalized, Math.max(cardCounts.get(normalized) || 0, count));
+        }
+      }
+      const pokemonCounts = new Map(pokemonDocs.map((doc) => [String(doc._id), Number(doc.total || 0)]));
+      const companies = new Map(companyDocs.map((company) => [String(company.ownerId), company]));
+      return formatWealthLeaderboard(users, cardCounts, pokemonCounts, companies);
+    })();
   }
-  return cached.text;
+
+  try {
+    const text = await wealthRefresh;
+    wealthCache = { createdAt: Date.now(), text };
+    return text;
+  } finally {
+    wealthRefresh = null;
+  }
 }
 
-function cacheText(key, text) {
-  leaderboardCache.set(key, {
-    text,
-    expiresAt: Date.now() + LEADERBOARD_CACHE_TTL,
-  });
+async function getWealthText(db) {
+  if (wealthCache) {
+    if (Date.now() - wealthCache.createdAt < WEALTH_CACHE_TTL_MS) {
+      return wealthCache.text;
+    }
+
+    // Serve the last complete snapshot while the next one refreshes.
+    void refreshWealthText(db).catch(() => {});
+    return wealthCache.text;
+  }
+
+  return refreshWealthText(db);
 }
+
 function formatWealthLeaderboard(users, cardCounts, pokemonCounts, companies) {
   const lines = [
     "⛩️  *𝗪𝗘𝗔𝗟𝗧𝗛  𝗥𝗔𝗡𝗞𝗜𝗡𝗚𝗦* ⛩️",
@@ -100,67 +161,13 @@ export default {
 
     // Normalise: support --flag, -flag, and plain word
     const flag = (args[0] || "").toLowerCase().replace(/^-+/, "");
-    const cacheKey = `lb:${flag || "wealth"}`;
-    const cachedText = getCachedText(cacheKey);
-    if (cachedText) {
-      return sock.sendMessage(jid, { text: cachedText }, { quoted: msg });
-    }
 
     const db = await getDb();
     const usersCollection = db.collection("users");
 
-    // ── Default: wealth leaderboard (kept inline so deployed containers do not
-    // depend on a separate leaderboard.js file that may not exist). ─────────
+    // ── Default: wealth leaderboard ─────────────────────────────────────────
     if (!flag) {
-      const users = await usersCollection.aggregate([
-        { $match: { registered: true } },
-        {
-          $project: {
-            name: 1,
-            username: 1,
-            money: 1,
-            bank: 1,
-            totalWealth: {
-              $add: [
-                { $ifNull: ["$money", 0] },
-                { $ifNull: ["$bank", 0] },
-              ],
-            },
-          },
-        },
-        { $sort: { totalWealth: -1, _id: 1 } },
-        { $limit: 10 },
-      ]).toArray();
-
-      if (!users.length) {
-        return sock.sendMessage(jid, { text: "💰 No registered players yet!" }, { quoted: msg });
-      }
-
-      const userJids = users.map((user) => String(user._id || user.jid || user.whatsappNumber || "")).filter(Boolean);
-      const [cardDocs, pokemonDocs, companyDocs] = await Promise.all([
-        db.collection("mn_users").find({
-          $or: [{ whatsappNumber: { $in: userJids } }, { userId: { $in: userJids } }],
-        }, { projection: { userId: 1, whatsappNumber: 1, cards: 1 } }).toArray(),
-        db.collection("pokemon_owned").aggregate([
-          { $match: { ownerJid: { $in: userJids } } },
-          { $group: { _id: "$ownerJid", total: { $sum: 1 } } },
-        ]).toArray(),
-        db.collection("companies").find({ ownerId: { $in: userJids } }, {
-          projection: { ownerId: 1, name: 1 },
-        }).toArray(),
-      ]);
-      const cardCounts = new Map();
-      for (const doc of cardDocs) {
-        const count = Array.isArray(doc.cards) ? doc.cards.length : 0;
-        for (const key of [doc.whatsappNumber, doc.userId].filter(Boolean)) {
-          const normalized = String(key);
-          cardCounts.set(normalized, Math.max(cardCounts.get(normalized) || 0, count));
-        }
-      }
-      const pokemonCounts = new Map(pokemonDocs.map((doc) => [String(doc._id), Number(doc.total || 0)]));
-      const companies = new Map(companyDocs.map((company) => [String(company.ownerId), company]));
-      const text = formatWealthLeaderboard(users, cardCounts, pokemonCounts, companies);
-      cacheText(cacheKey, text);
+      const text = await getWealthText(db);
       return sock.sendMessage(jid, { text }, { quoted: msg });
     }
 
@@ -168,7 +175,13 @@ export default {
     if (flag === "level" || flag === "levels" || flag === "xp") {
       const users = await usersCollection.aggregate([
         { $match: { registered: true } },
-        { $project: { name: 1, level: 1, xp: 1 } },
+        {
+          $project: {
+            name: 1,
+            level: numericField("$level"),
+            xp: numericField("$xp"),
+          },
+        },
         { $sort: { level: -1, xp: -1, _id: 1 } },
         { $limit: 10 },
       ]).toArray();
@@ -185,7 +198,6 @@ export default {
         valueLabel: "LEVEL",
         footer: "Level up and claim your place",
       });
-      cacheText(cacheKey, text);
       return sock.sendMessage(jid, { text }, { quoted: msg });
     }
 
@@ -227,7 +239,6 @@ export default {
         valueLabel: "CARDS",
         footer: "Collect • compete • become a legend",
       });
-      cacheText(cacheKey, text);
       return sock.sendMessage(jid, { text }, { quoted: msg });
     }
 
@@ -275,7 +286,6 @@ export default {
         valueLabel: "POKÉMON",
         footer: "Catch • train • rise to the top",
       });
-      cacheText(cacheKey, text);
       return sock.sendMessage(jid, { text }, { quoted: msg });
     }
 
