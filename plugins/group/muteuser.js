@@ -28,7 +28,32 @@ export default {
   isAdmin: true,
   cooldown: 3,
 
-  async run({ sock, msg, cmd, args }) {
+  async run({ sock, msg, cmd, args, discord }) {
+    const discordMessage = discord?.message;
+    if (discordMessage?.guild) {
+      const isUnmute = cmd === "unmuteuser" || cmd === "unmute-user";
+      if (cmd === "mutelist") {
+        const members = await discordMessage.guild.members.fetch();
+        const muted = members.filter((member) => member.communicationDisabledUntilTimestamp > Date.now());
+        return discordMessage.reply(muted.size
+          ? `🔇 *Muted Members (${muted.size})*\n\n${[...muted.values()].map((member) => `<@${member.id}>`).join("\n")}`
+          : "✅ No members are currently timed out.");
+      }
+      const target = discordMessage.mentions.members.first();
+      if (!target) return discordMessage.reply(`❌ Mention the user you want to ${isUnmute ? "unmute" : "mute"}.`);
+      try {
+        if (isUnmute) {
+          await target.timeout(null, "AKIRA unmute command");
+          return discordMessage.reply(`🔊 <@${target.id}> has been unmuted.`);
+        }
+        const reason = discordMessage.content.replace(/^\S+\s*/, "").replace(/<@!?\d+>/g, "").trim() || "Muted by moderator";
+        await target.timeout(10 * 60 * 1000, reason);
+        return discordMessage.reply(`🔇 <@${target.id}> has been muted for 10 minutes.${reason === "Muted by moderator" ? "" : `\nReason: ${reason}`}`);
+      } catch {
+        return discordMessage.reply("❌ I need Moderate Members permission, and my role must be above the target.");
+      }
+    }
+
     const jid = msg.key.remoteJid;
 
     if (!jid.endsWith("@g.us")) {

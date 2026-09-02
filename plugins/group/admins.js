@@ -11,7 +11,19 @@ export default {
   cooldown: 10,
   isAdmin: false,
 
-  async run({ sock, msg }) {
+  async run({ sock, msg, discord }) {
+    const discordMessage = discord?.message;
+    const guild = discordMessage?.guild;
+    if (guild) {
+      const admins = guild.members.cache.filter((member) => member.permissions.has("Administrator"));
+      if (!admins.size) return discordMessage.reply("❌ No server administrators found.");
+      return discordMessage.reply(
+        `👮 *Server Administrators* (${admins.size})\n\n${[...admins.values()]
+          .map((member) => `🛡️ <@${member.id}>`)
+          .join("\n")}`,
+      );
+    }
+
     const jid = msg.key.remoteJid;
 
     if (!jid.endsWith("@g.us")) {

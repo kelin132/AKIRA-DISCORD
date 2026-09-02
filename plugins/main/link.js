@@ -1,11 +1,11 @@
 import { claimWhatsAppLink, resolveDiscordAccount, unlinkDiscordAccount } from "../../lib/accountLink.mjs";
 
 export default {
-  name: "link",
+  name: "connect",
   description: "Link your WhatsApp progress to Discord",
   category: "main",
-  usage: ".link <code>  — or .link status / .link remove",
-  aliases: ["linkaccount", "discordlink"],
+  usage: ".connect <code>  — or .connect status / .connect remove",
+  aliases: ["connectaccount", "connectdiscord", "linkaccount"],
   cooldown: 5,
 
   async run({ sock, msg, text, rawSender }) {
@@ -18,7 +18,7 @@ export default {
         "🔗 *Link your WhatsApp progress*\n\n" +
         "1. Open the WhatsApp bot and send *.discordlink*\n" +
         "2. Copy the one-time code it gives you\n" +
-        "3. Return here and send *.link CODE*\n\n" +
+        "3. Return here and send *.connect CODE*\n\n" +
         "The code expires after 10 minutes and can only be used once.",
       );
     }
@@ -28,7 +28,7 @@ export default {
       const linked = await resolveDiscordAccount(discordId);
       return reply(linked
         ? `✅ This Discord account is linked to WhatsApp identity \`${linked}\`.\nYour shared progress is active.`
-        : "ℹ️ This Discord account is not linked yet.\nUse *.link* to see the setup steps.");
+        : "ℹ️ This Discord account is not linked yet.\nUse *.connect* to see the setup steps.");
     }
 
     if (command === "remove" || command === "unlink") {

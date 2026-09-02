@@ -10,7 +10,21 @@ export default {
   isPremium: false,
   version: "1.2.0",
 
-  async run({ sock, msg }) {
+  async run({ sock, msg, discord }) {
+    const discordMessage = discord?.message;
+    if (discordMessage?.guild) {
+      const targets = [...discordMessage.mentions.members.values()];
+      if (!targets.length) return discordMessage.reply("❌ Mention the server member to demote.");
+      const role = discordMessage.guild.roles.cache.find((entry) => entry.name === "AKIRA Moderator");
+      if (!role) return discordMessage.reply("ℹ️ No AKIRA Moderator role exists yet.");
+      try {
+        await Promise.all(targets.map((member) => member.roles.remove(role)));
+        return discordMessage.reply(`✅ Removed AKIRA Moderator from ${targets.map((member) => `<@${member.id}>`).join(", ")}.`);
+      } catch {
+        return discordMessage.reply("❌ I need Manage Roles permission.");
+      }
+    }
+
     const jid = msg.key.remoteJid;
 
     if (!jid.endsWith("@g.us")) {

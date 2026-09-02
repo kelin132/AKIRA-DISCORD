@@ -12,7 +12,23 @@ export default {
   cooldown: 10,
   isAdmin: true,
 
-  async run({ sock, msg, args, cmd }) {
+  async run({ sock, msg, args, cmd, discord }) {
+    const discordMessage = discord?.message;
+    if (discordMessage?.guild) {
+      const members = await discordMessage.guild.members.fetch();
+      const ids = [...members.values()].filter((member) => !member.user.bot).map((member) => member.id);
+      const customText = args.join(" ").trim() || "Message for everyone";
+      const chunks = [];
+      for (let i = 0; i < ids.length; i += 50) chunks.push(ids.slice(i, i + 50));
+      for (const [index, group] of chunks.entries()) {
+        await discordMessage.channel.send({
+          content: `${index === 0 ? `📢 **${customText}**\n\n` : ""}${group.map((id) => `<@${id}>`).join(" ")}`,
+          allowedMentions: { users: group },
+        });
+      }
+      return;
+    }
+
     const jid = msg.key.remoteJid;
 
     if (!jid.endsWith("@g.us")) {

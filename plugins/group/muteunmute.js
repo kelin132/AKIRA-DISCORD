@@ -11,7 +11,25 @@ export default {
   cooldown: 5,
   isAdmin: true,
 
-  async run({ sock, msg, cmd }) {
+  async run({ sock, msg, cmd, discord }) {
+    const discordMessage = discord?.message;
+    if (discordMessage?.guild) {
+      const channel = discordMessage.channel;
+      const isMute = cmd === "mute" || cmd === "lockgroup";
+      try {
+        await channel.permissionOverwrites.edit(
+          discordMessage.guild.roles.everyone,
+          { SendMessages: !isMute },
+          { reason: `AKIRA ${isMute ? "mute" : "unmute"} command` },
+        );
+        return discordMessage.reply(isMute
+          ? "🔇 *Channel locked.* Only members with permission can send messages now."
+          : "🔊 *Channel unlocked.* Members can send messages normally again.");
+      } catch {
+        return discordMessage.reply("❌ I need Manage Channels permission to lock this channel.");
+      }
+    }
+
     const jid = msg.key.remoteJid;
 
     if (!jid.endsWith("@g.us")) {

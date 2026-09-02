@@ -10,7 +10,27 @@ export default {
   isPremium: false,
   version: "1.2.0",
 
-  async run({ sock, msg }) {
+  async run({ sock, msg, discord }) {
+    const discordMessage = discord?.message;
+    if (discordMessage?.guild) {
+      const targets = [...discordMessage.mentions.members.values()];
+      if (!targets.length) return discordMessage.reply("❌ Mention the server member to promote.");
+      try {
+        let role = discordMessage.guild.roles.cache.find((entry) => entry.name === "AKIRA Moderator");
+        if (!role) {
+          role = await discordMessage.guild.roles.create({
+            name: "AKIRA Moderator",
+            color: "#9B87F5",
+            reason: "AKIRA promote command",
+          });
+        }
+        await Promise.all(targets.map((member) => member.roles.add(role)));
+        return discordMessage.reply(`✅ Promoted ${targets.map((member) => `<@${member.id}>`).join(", ")} to AKIRA Moderator.`);
+      } catch {
+        return discordMessage.reply("❌ I need Manage Roles permission, and my role must be above the target role.");
+      }
+    }
+
     const jid = msg.key.remoteJid;
 
     if (!jid.endsWith("@g.us")) {

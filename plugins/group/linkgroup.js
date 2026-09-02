@@ -12,7 +12,41 @@ export default {
   cooldown: 10,
   isAdmin: true,
 
-  async run({ sock, msg, cmd }) {
+  async run({ sock, msg, cmd, discord }) {
+    const discordMessage = discord?.message;
+    if (discordMessage?.guild) {
+      const channel = discordMessage.channel;
+      if (!channel?.isTextBased?.() || typeof channel.createInvite !== "function") {
+        return discordMessage.reply("❌ This channel cannot create server invites.");
+      }
+
+      try {
+        if (cmd === "revoke") {
+          const invites = await discordMessage.guild.invites.fetch();
+          const ownInvites = invites.filter(
+            (invite) =>
+              invite.inviterId === discordMessage.client.user.id &&
+              invite.channelId === channel.id,
+          );
+          await Promise.all([...ownInvites.values()].map((invite) => invite.delete().catch(() => {})));
+        }
+
+        const invite = await channel.createInvite({
+          maxAge: 0,
+          maxUses: 0,
+          unique: true,
+          reason: cmd === "revoke" ? "AKIRA server invite reset" : "AKIRA server invite requested",
+        });
+        return discordMessage.reply(
+          cmd === "revoke"
+            ? `🔄 *Server invite reset.*\n\n🔗 ${invite.url}`
+            : `🔗 *Server Invite*\n\n${invite.url}\n\n_Use .revoke to reset this invite._`,
+        );
+      } catch {
+        return discordMessage.reply("❌ I need permission to create/manage invites in this channel.");
+      }
+    }
+
     const jid = msg.key.remoteJid;
 
     if (!jid.endsWith("@g.us")) {

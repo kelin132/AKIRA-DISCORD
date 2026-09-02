@@ -73,13 +73,14 @@ AKIRA-DISCORD uses a namespaced identity system to coexist with Kelin-MD2 in the
 
 To connect an individual user's accounts:
 1. On WhatsApp, send `.discordlink`.
-2. On Discord, send `.link CODE` using the one-time code WhatsApp returns.
-3. Use `.link status` to check the connection or `.link remove` to disconnect it.
+2. On Discord, send `.connect CODE` using the one-time code WhatsApp returns.
+3. Use `.connect status` to check the connection or `.connect remove` to disconnect it.
 
 After linking, Discord resolves that user's commands to their WhatsApp JID, so their
 existing economy, card, Pokémon, guild, and profile progress is used directly. The
 code expires after 10 minutes, is stored hashed, and can only be used once. Both
-bots must use the same `MONGO_URI`.
+bots must use the same `MONGO_URI`. The existing `.link` command remains reserved
+for the Discord server invite.
 
 ## 🛠 Deployment
 

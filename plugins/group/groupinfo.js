@@ -11,7 +11,24 @@ export default {
   cooldown: 10,
   isAdmin: false,
 
-  async run({ sock, msg }) {
+  async run({ sock, msg, discord }) {
+    const discordMessage = discord?.message;
+    const guild = discordMessage?.guild;
+    if (guild) {
+      const owner = await guild.fetchOwner().catch(() => null);
+      return discordMessage.reply([
+        "📋 *Server Info*",
+        "",
+        `🏷️ *Name:* ${guild.name}`,
+        `🆔 *Server ID:* ${guild.id}`,
+        `👥 *Members:* ${guild.memberCount ?? "Unknown"}`,
+        `📅 *Created:* ${guild.createdAt?.toLocaleDateString("en-GB") || "Unknown"}`,
+        `👑 *Owner:* ${owner ? `<@${owner.id}>` : "Unknown"}`,
+        `📁 *Channels:* ${guild.channels.cache.size}`,
+        `🛡️ *Roles:* ${guild.roles.cache.size}`,
+      ].join("\n"));
+    }
+
     const jid = msg.key.remoteJid;
 
     if (!jid.endsWith("@g.us")) {

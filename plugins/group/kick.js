@@ -10,7 +10,20 @@ export default {
   isPremium: false,
   version: "1.2.0",
 
-  async run({ sock, msg }) {
+  async run({ sock, msg, discord }) {
+    const discordMessage = discord?.message;
+    if (discordMessage?.guild) {
+      const targets = [...discordMessage.mentions.members.values()];
+      if (!targets.length) return discordMessage.reply("❌ Mention the server member to kick.");
+        const reason = discordMessage.content.replace(/^\S+\s*/, "").replace(/<@!?\d+>/g, "").trim() || "Removed by moderator";
+      try {
+        await Promise.all(targets.map((member) => member.kick(reason)));
+        return discordMessage.reply(`✅ Removed ${targets.map((member) => `<@${member.id}>`).join(", ")} from the server.`);
+      } catch {
+        return discordMessage.reply("❌ I need the Kick Members permission, and my role must be above the target.");
+      }
+    }
+
     const jid = msg.key.remoteJid;
 
     if (!jid.endsWith("@g.us")) {
