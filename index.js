@@ -5,7 +5,7 @@ await import("./scripts/auto-update.mjs");
 await import("dotenv/config");
 
 const { connectDiscord } = await import("./lib/discord.mjs");
-const { loadPlugins, routeDiscordMessage } = await import("./lib/pluginManager.mjs");
+const { loadPlugins, routeDiscordMessage, routeDiscordInteraction } = await import("./lib/pluginManager.mjs");
 const { log } = await import("./lib/logger.mjs");
 const { closeDb, connectDb } = await import("./lib/mongo.mjs");
 const { startHealthServer } = await import("./lib/health.mjs");
@@ -41,6 +41,11 @@ async function start() {
     client.on("messageCreate", (message) => {
       routeDiscordMessage(client, message, PREFIX, OWNER_ID).catch((error) => {
         log("error", `Unhandled message error: ${error.stack || error.message}`);
+      });
+    });
+    client.on("interactionCreate", (interaction) => {
+      routeDiscordInteraction(client, interaction, PREFIX, OWNER_ID).catch((error) => {
+        log("error", `Unhandled interaction error: ${error.stack || error.message}`);
       });
     });
 

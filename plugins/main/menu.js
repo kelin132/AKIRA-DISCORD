@@ -1,8 +1,10 @@
 import { getPlugins } from "../../lib/pluginManager.mjs";
 import { groupSettings } from "../../lib/groupSettings.js";
 import { getRuntimeSettings } from "../../lib/runtimeSettings.mjs";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from "discord.js";
 
 const READMORE = "\u200B".repeat(4000);
+const discordMenuSessions = new Map();
 
 const categoryEmojis = {
   main: "🏡", economy: "💰", guild: "⚔️", naruto: "🪾", dragonball: "🐉",
@@ -105,6 +107,27 @@ function chunkForDiscord(text, maxLength = 1900) {
   return chunks.length ? chunks : [""];
 }
 
+function discordMenuPayload(token, pages, pageIndex, runtime) {
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`menu:${token}:previous`)
+      .setLabel("◀ Previous")
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(pageIndex === 0),
+    new ButtonBuilder()
+      .setCustomId(`menu:${token}:next`)
+      .setLabel("Next ▶")
+      .setStyle(ButtonStyle.Primary)
+      .setDisabled(pageIndex === pages.length - 1),
+  );
+  const embed = new EmbedBuilder()
+    .setColor("#9B87F5")
+    .setTitle(`${runtime.botName} • COMMANDS`)
+    .setDescription(pages[pageIndex])
+    .setFooter({ text: `Page ${pageIndex + 1}/${pages.length} • Buttons expire after 10 minutes` });
+  return { embeds: [embed], components: [row] };
+}
+
 export default {
   name: "menu",
   description: "Display all available commands",
@@ -118,13 +141,15 @@ export default {
     const allPlugins = getPlugins();
     const isGroup = jid?.endsWith("@g.us");
     const senderNum = sender.split("@")[0].split(":")[0];
-    const mention = `@${senderNum}`;
     const gs = isGroup ? (groupSettings.get(jid) || {}) : {};
     const disabledCats = new Set(gs.disabledCategories || []);
     const runtime = getRuntimeSettings();
     const menuPrefix = runtime.prefix || prefix;
     const requestedCategory = normalizeCategory(args?.[0] || "");
     const isDiscord = Boolean(discord?.message);
+    const mention = isDiscord
+      ? `<@${discord.message.author.id}>`
+      : `@${senderNum}`;
 
     const map = new Map();
     for (const plugin of allPlugins) {
@@ -187,9 +212,15 @@ export default {
 
     if (isDiscord) {
       const pages = chunkForDiscord(text);
-      for (const [index, page] of pages.entries()) {
-        await sock.sendMessage(jid, { text: page }, index === 0 ? { quoted: msg } : {});
-      }
+      const token = `${discord.message.author.id}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+      discordMenuSessions.set(token, {
+        userId: discord.message.author.id,
+        pages,
+        runtime,
+        expiresAt: Date.now() + 10 * 60 * 1000,
+      });
+      setTimeout(() => discordMenuSessions.delete(token), 10 * 60 * 1000).unref?.();
+      await discord.message.reply(discordMenuPayload(token, pages, 0, runtime));
       return;
     }
 
@@ -198,5 +229,24 @@ export default {
       caption: text,
       mentions: [sender],
     }, { quoted: msg });
+  },
+
+  async onDiscordInteraction({ interaction }) {
+    const parts = String(interaction.customId || "").split(":");
+    if (parts.length !== 3 || parts[0] !== "menu") return;
+
+    const session = discordMenuSessions.get(parts[1]);
+    if (!session || session.expiresAt <= Date.now()) {
+      discordMenuSessions.delete(parts[1]);
+      return interaction.reply({ content: "❌ This menu has expired. Send `.menu` again.", ephemeral: true });
+    }
+    if (interaction.user.id !== session.userId) {
+      return interaction.reply({ content: "❌ This menu belongs to another user. Send `.menu` to open your own.", ephemeral: true });
+    }
+
+    const currentPage = Number(interaction.message.embeds?.[0]?.footer?.text?.match(/Page (\d+)\//)?.[1] || 1) - 1;
+    const nextPage = parts[2] === "next" ? currentPage + 1 : currentPage - 1;
+    const pageIndex = Math.max(0, Math.min(session.pages.length - 1, nextPage));
+    await interaction.update(discordMenuPayload(parts[1], session.pages, pageIndex, session.runtime));
   },
 };
