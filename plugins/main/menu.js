@@ -107,25 +107,74 @@ function chunkForDiscord(text, maxLength = 1900) {
   return chunks.length ? chunks : [""];
 }
 
-function discordMenuPayload(token, pages, pageIndex, runtime) {
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`menu:${token}:previous`)
-      .setLabel("◀ Previous")
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(pageIndex === 0),
-    new ButtonBuilder()
-      .setCustomId(`menu:${token}:next`)
-      .setLabel("Next ▶")
-      .setStyle(ButtonStyle.Primary)
-      .setDisabled(pageIndex === pages.length - 1),
-  );
+const MAX_CATEGORY_BUTTONS = 20;
+
+function discordMenuPayload(token, session) {
+  const { categories, categoryTexts, selectedCategory, categoryOffset, runtime } = session;
+  const selectedText = selectedCategory
+    ? categoryTexts.get(selectedCategory)
+    : [
+        `*Hello ${session.mention}, I am ${runtime.botName}* 👋`,
+        "",
+        "Choose a category below to view its Discord commands.",
+        "",
+        "Each button updates this message, so you can switch categories without filling the channel with menus.",
+      ].join("\n");
+  const visibleCategories = categories.slice(categoryOffset, categoryOffset + MAX_CATEGORY_BUTTONS);
+  const rows = [];
+
+  for (let start = 0; start < visibleCategories.length; start += 5) {
+    const row = new ActionRowBuilder();
+    for (const category of visibleCategories.slice(start, start + 5)) {
+      row.addComponents(
+        new ButtonBuilder()
+          .setCustomId(`menu:${token}:cat:${category}`)
+          .setLabel(categoryTitles[category] || category.toUpperCase())
+          .setEmoji(categoryEmojis[category] || "📌")
+          .setStyle(selectedCategory === category ? ButtonStyle.Primary : ButtonStyle.Secondary),
+      );
+    }
+    rows.push(row);
+  }
+
+  const hasCategoryNavigation = categories.length > MAX_CATEGORY_BUTTONS;
+  if (hasCategoryNavigation || selectedCategory) {
+    const navigation = new ActionRowBuilder();
+    if (hasCategoryNavigation) {
+      navigation.addComponents(
+        new ButtonBuilder()
+          .setCustomId(`menu:${token}:nav:previous`)
+          .setLabel("◀ More")
+          .setStyle(ButtonStyle.Secondary)
+          .setDisabled(categoryOffset === 0),
+        new ButtonBuilder()
+          .setCustomId(`menu:${token}:nav:next`)
+          .setLabel("More ▶")
+          .setStyle(ButtonStyle.Secondary)
+          .setDisabled(categoryOffset + MAX_CATEGORY_BUTTONS >= categories.length),
+      );
+    }
+    if (selectedCategory) {
+      navigation.addComponents(
+        new ButtonBuilder()
+          .setCustomId(`menu:${token}:home`)
+          .setLabel("⌂ Categories")
+          .setStyle(ButtonStyle.Success),
+      );
+    }
+    rows.push(navigation);
+  }
+
   const embed = new EmbedBuilder()
     .setColor("#9B87F5")
     .setTitle(`${runtime.botName} • COMMANDS`)
-    .setDescription(pages[pageIndex])
-    .setFooter({ text: `Page ${pageIndex + 1}/${pages.length} • Buttons expire after 10 minutes` });
-  return { embeds: [embed], components: [row] };
+    .setDescription(selectedText)
+    .setFooter({
+      text: selectedCategory
+        ? `${categoryTitles[selectedCategory] || selectedCategory} • Choose another category below`
+        : "Choose a category below",
+    });
+  return { embeds: [embed], components: rows };
 }
 
 export default {
@@ -182,13 +231,6 @@ export default {
     let text = requestedCategory
       ? `*MENU*\n${isDiscord ? "" : `\n${READMORE}\n`}`
       : `*Hello ${mention}, I am ${runtime.botName}* 👋
-╭━━━━━━━━━━━━━━━━━━━━╮
-│ ✦ *REGISTER*
-│ ├─ 🌸 ꕥ *${menuPrefix}reg* › Use economy commands
-│ ├─ 📜 ꕥ *${menuPrefix}rules* › Bot rules
-│ ├─ 🌐 ꕥ *${menuPrefix}support* › Official group
-│ └─ ⚡ ꕥ *${menuPrefix}reqbot* › Add me to your group
-╰━━━━━━━━━━━━━━━━━━━━╯
 \n${isDiscord ? "" : `${READMORE}\n`}`;
 
     for (const cat of visibleCats) {
@@ -211,16 +253,35 @@ export default {
     }
 
     if (isDiscord) {
-      const pages = chunkForDiscord(text);
       const token = `${discord.message.author.id}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
-      discordMenuSessions.set(token, {
+      const categoryTexts = new Map();
+      for (const cat of sortedCats) {
+        const isCatDisabled = isGroup && disabledCats.has(cat) && !showStaff;
+        if (isCatDisabled) continue;
+        const emoji = categoryEmojis[cat] || "📌";
+        const title = categoryTitles[cat] || cat.toUpperCase();
+        const disabledTag = isGroup && disabledCats.has(cat) && showStaff ? " _(disabled)_" : "";
+        const categoryPlugins = [...map.get(cat)].sort((a, b) => a.name.localeCompare(b.name));
+        const categoryText = renderCategory(emoji, title, disabledTag, categoryPlugins, menuPrefix, true);
+        categoryTexts.set(cat, chunkForDiscord(categoryText, 3800)[0]);
+      }
+
+      const session = {
         userId: discord.message.author.id,
-        pages,
+        categories: [...categoryTexts.keys()],
+        categoryTexts,
+        selectedCategory: requestedCategory || null,
+        categoryOffset: Math.max(
+          0,
+          Math.floor(Math.max(0, sortedCats.indexOf(requestedCategory)) / MAX_CATEGORY_BUTTONS) * MAX_CATEGORY_BUTTONS,
+        ),
         runtime,
+        mention,
         expiresAt: Date.now() + 10 * 60 * 1000,
-      });
+      };
+      discordMenuSessions.set(token, session);
       setTimeout(() => discordMenuSessions.delete(token), 10 * 60 * 1000).unref?.();
-      await discord.message.reply(discordMenuPayload(token, pages, 0, runtime));
+      await discord.message.reply(discordMenuPayload(token, session));
       return;
     }
 
@@ -233,7 +294,7 @@ export default {
 
   async onDiscordInteraction({ interaction }) {
     const parts = String(interaction.customId || "").split(":");
-    if (parts.length !== 3 || parts[0] !== "menu") return;
+    if (parts.length < 3 || parts[0] !== "menu") return;
 
     const session = discordMenuSessions.get(parts[1]);
     if (!session || session.expiresAt <= Date.now()) {
@@ -244,9 +305,31 @@ export default {
       return interaction.reply({ content: "❌ This menu belongs to another user. Send `.menu` to open your own.", ephemeral: true });
     }
 
-    const currentPage = Number(interaction.message.embeds?.[0]?.footer?.text?.match(/Page (\d+)\//)?.[1] || 1) - 1;
-    const nextPage = parts[2] === "next" ? currentPage + 1 : currentPage - 1;
-    const pageIndex = Math.max(0, Math.min(session.pages.length - 1, nextPage));
-    await interaction.update(discordMenuPayload(parts[1], session.pages, pageIndex, session.runtime));
+    if (parts[2] === "cat" && parts[3]) {
+      if (!session.categories.includes(parts[3])) {
+        return interaction.reply({ content: "❌ That category is no longer available.", ephemeral: true });
+      }
+      session.selectedCategory = parts[3];
+      session.categoryOffset =
+        Math.floor(session.categories.indexOf(parts[3]) / MAX_CATEGORY_BUTTONS) * MAX_CATEGORY_BUTTONS;
+      return interaction.update(discordMenuPayload(parts[1], session));
+    }
+
+    if (parts[2] === "home") {
+      session.selectedCategory = null;
+      return interaction.update(discordMenuPayload(parts[1], session));
+    }
+
+    if (parts[2] === "nav") {
+      const direction = parts[3] === "next" ? MAX_CATEGORY_BUTTONS : -MAX_CATEGORY_BUTTONS;
+      session.categoryOffset = Math.max(
+        0,
+        Math.min(
+          Math.floor((session.categories.length - 1) / MAX_CATEGORY_BUTTONS) * MAX_CATEGORY_BUTTONS,
+          session.categoryOffset + direction,
+        ),
+      );
+      return interaction.update(discordMenuPayload(parts[1], session));
+    }
   },
 };
