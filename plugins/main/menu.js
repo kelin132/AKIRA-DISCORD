@@ -88,7 +88,7 @@ function chunkForDiscord(text, maxLength = 1900) {
 }
 
 function discordMenuPayload(token, session) {
-  const { categories, categoryTexts, categoryIndex, runtime } = session;
+  const { categories, categoryTexts, categoryIndex, runtime, mention } = session;
   const category = categories[categoryIndex];
   const title = categoryTitles[category] || category.toUpperCase();
   const row = new ActionRowBuilder().addComponents(
@@ -106,7 +106,7 @@ function discordMenuPayload(token, session) {
 
   const embed = new EmbedBuilder()
     .setColor("#9B87F5")
-    .setTitle(`${runtime.botName} • ${title}`)
+    .setTitle(`Hello ${mention}, I'm ${runtime.botName}`)
     .setDescription(categoryTexts.get(category) || "No commands are available in this category.")
     .setFooter({
       text: `Category ${categoryIndex + 1}/${categories.length} • ${title} • Use the buttons to switch categories`,

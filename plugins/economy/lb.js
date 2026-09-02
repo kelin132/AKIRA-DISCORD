@@ -18,7 +18,25 @@ const WEALTH_TIERS = [
   ["🔥", "Flame Bearer"], ["💧", "Tide Turner"], ["🌿", "Forest Spirit"], ["⭐", "Chosen One"],
 ];
 const WEALTH_SEPARATOR = "  ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈";
+const LEADERBOARD_CACHE_TTL = 30_000;
+const leaderboardCache = new Map();
 const formatMoney = (value) => `$${Number(value || 0).toLocaleString()}`;
+
+function getCachedText(key) {
+  const cached = leaderboardCache.get(key);
+  if (!cached || cached.expiresAt <= Date.now()) {
+    leaderboardCache.delete(key);
+    return null;
+  }
+  return cached.text;
+}
+
+function cacheText(key, text) {
+  leaderboardCache.set(key, {
+    text,
+    expiresAt: Date.now() + LEADERBOARD_CACHE_TTL,
+  });
+}
 function formatWealthLeaderboard(users, cardCounts, pokemonCounts, companies) {
   const lines = [
     "⛩️  *𝗪𝗘𝗔𝗟𝗧𝗛  𝗥𝗔𝗡𝗞𝗜𝗡𝗚𝗦* ⛩️",
@@ -82,6 +100,11 @@ export default {
 
     // Normalise: support --flag, -flag, and plain word
     const flag = (args[0] || "").toLowerCase().replace(/^-+/, "");
+    const cacheKey = `lb:${flag || "wealth"}`;
+    const cachedText = getCachedText(cacheKey);
+    if (cachedText) {
+      return sock.sendMessage(jid, { text: cachedText }, { quoted: msg });
+    }
 
     const db = await getDb();
     const usersCollection = db.collection("users");
@@ -137,6 +160,7 @@ export default {
       const pokemonCounts = new Map(pokemonDocs.map((doc) => [String(doc._id), Number(doc.total || 0)]));
       const companies = new Map(companyDocs.map((company) => [String(company.ownerId), company]));
       const text = formatWealthLeaderboard(users, cardCounts, pokemonCounts, companies);
+      cacheText(cacheKey, text);
       return sock.sendMessage(jid, { text }, { quoted: msg });
     }
 
@@ -161,6 +185,7 @@ export default {
         valueLabel: "LEVEL",
         footer: "Level up and claim your place",
       });
+      cacheText(cacheKey, text);
       return sock.sendMessage(jid, { text }, { quoted: msg });
     }
 
@@ -202,6 +227,7 @@ export default {
         valueLabel: "CARDS",
         footer: "Collect • compete • become a legend",
       });
+      cacheText(cacheKey, text);
       return sock.sendMessage(jid, { text }, { quoted: msg });
     }
 
@@ -249,6 +275,7 @@ export default {
         valueLabel: "POKÉMON",
         footer: "Catch • train • rise to the top",
       });
+      cacheText(cacheKey, text);
       return sock.sendMessage(jid, { text }, { quoted: msg });
     }
 
