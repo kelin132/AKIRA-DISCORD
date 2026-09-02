@@ -95,7 +95,9 @@ export default {
     const cardUser = await getCardUser(target);
     const websiteAvatar = [cardUser?.profilePictureUrl, cardUser?.profileImage, cardUser?.avatarUrl]
       .find((value) => typeof value === "string" && /^https?:\/\//i.test(value));
-    const discordAvatar = discord?.message?.author?.displayAvatarURL?.({
+    const mentionedDiscordUser = discord?.message?.mentions?.users?.first?.();
+    const discordProfileUser = mentionedDiscordUser || discord?.message?.author;
+    const discordAvatar = discordProfileUser?.displayAvatarURL?.({
       extension: "png",
       size: 512,
       forceStatic: true,

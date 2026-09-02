@@ -21,12 +21,44 @@ export default {
     const discordMessage = discord?.message;
     if (discordMessage?.guild) {
       const key = discordSettingsKey(discordMessage.guild.id);
-      const text = args.join(" ").trim();
+      const rawBody = String(discordMessage.content || "");
+      const text = rawBody
+        .replace(/^[.!#/]?(?:setwelcome|customwelcome)\s*/i, "")
+        .trim();
       const settings = groupSettings.get(key);
+
+      if (/^image(?:\s+|$)/i.test(text)) {
+        const option = text.replace(/^image\s*/i, "").toLowerCase() || "help";
+        if (!["member", "group", "off", "none"].includes(option)) {
+          return discordMessage.reply(
+            "🖼️ **Welcome image**\n\n" +
+            "`.setwelcome image member` — joining member avatar\n" +
+            "`.setwelcome image group` — server icon\n" +
+            "`.setwelcome image off` — text/card without image",
+          );
+        }
+        const mode = option === "off" ? "none" : option;
+        groupSettings.set(key, { welcomeImage: mode });
+        return discordMessage.reply(`✅ Welcome image set to **${mode}**.`);
+      }
+
+      if (/^card\s+(on|off)$/i.test(text)) {
+        const enabled = /on$/i.test(text);
+        groupSettings.set(key, { welcomeCard: enabled });
+        return discordMessage.reply(
+          enabled
+            ? "🖼️ Welcome card mode **enabled**. New members will receive an avatar welcome embed."
+            : "💬 Welcome card mode **disabled**. New members will receive a clean welcome embed.",
+        );
+      }
+
       if (!text) {
         return discordMessage.reply(
           `📝 **Welcome Message**\n\nCurrent message:\n${settings.welcome || "Default welcome message"}\n\n` +
-          "Usage: `.setwelcome Welcome @user to @group — member @count`",
+          "Placeholders: `@user`, `@group`, `@count`, `@pp`, `@gp`, `{br}`\n\n" +
+          "Usage: `.setwelcome Welcome @user to @group{br}Please read the rules.`\n\n" +
+          "Image: `.setwelcome image member|group|off`\n" +
+          "Card style: `.setwelcome card on|off`",
         );
       }
       if (text.toLowerCase() === "reset") {
@@ -38,7 +70,9 @@ export default {
         welcome: text,
         welcomeChannelId: discordMessage.channel.id,
       });
-      return discordMessage.reply("✅ Welcome message saved. Use @user, @group, and @count as placeholders.");
+      return discordMessage.reply(
+        "✅ Welcome message saved. Use `@user`, `@group`, `@count`, and `{br}` for paragraph spacing.",
+      );
     }
 
     const jid = msg.key.remoteJid;

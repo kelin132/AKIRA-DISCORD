@@ -20,12 +20,31 @@ export default {
     const discordMessage = discord?.message;
     if (discordMessage?.guild) {
       const key = discordSettingsKey(discordMessage.guild.id);
-      const text = args.join(" ").trim();
+      const rawBody = String(discordMessage.content || "");
+      const text = rawBody
+        .replace(/^[.!#/]?(?:setgoodbye|customgoodbye)\s*/i, "")
+        .trim();
       const settings = groupSettings.get(key);
+      if (/^image(?:\s+|$)/i.test(text)) {
+        const option = text.replace(/^image\s*/i, "").toLowerCase() || "help";
+        if (!["member", "group", "off", "none"].includes(option)) {
+          return discordMessage.reply(
+            "🖼️ **Goodbye image**\n\n" +
+            "`.setgoodbye image member` — leaving member avatar\n" +
+            "`.setgoodbye image group` — server icon\n" +
+            "`.setgoodbye image off` — text only",
+          );
+        }
+        const mode = option === "off" ? "none" : option;
+        groupSettings.set(key, { goodbyeImage: mode });
+        return discordMessage.reply(`✅ Goodbye image set to **${mode}**.`);
+      }
       if (!text) {
         return discordMessage.reply(
           `📝 **Goodbye Message**\n\nCurrent message:\n${settings.goodbye || "Default goodbye message"}\n\n` +
-          "Usage: `.setgoodbye Goodbye @user — we will miss you in @group`",
+          "Placeholders: `@user`, `@group`, `@count`, `@pp`, `@gp`, `{br}`\n\n" +
+          "Usage: `.setgoodbye Goodbye @user{br}We will miss you in @group.`\n\n" +
+          "Image: `.setgoodbye image member|group|off`",
         );
       }
       if (text.toLowerCase() === "reset") {
@@ -37,7 +56,9 @@ export default {
         goodbye: text,
         goodbyeChannelId: discordMessage.channel.id,
       });
-      return discordMessage.reply("✅ Goodbye message saved. Use @user, @group, and @count as placeholders.");
+      return discordMessage.reply(
+        "✅ Goodbye message saved. Use `@user`, `@group`, `@count`, and `{br}` for paragraph spacing.",
+      );
     }
 
     const jid = msg.key.remoteJid;

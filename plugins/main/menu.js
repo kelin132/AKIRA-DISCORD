@@ -198,7 +198,7 @@ export default {
       const disabledTag = isGroup && disabledCats.has(cat) && showStaff ? " _(disabled)_" : "";
       const categoryPlugins = [...map.get(cat)].sort((a, b) => a.name.localeCompare(b.name));
       if (requestedCategory) {
-        text += renderCategory(emoji, title, disabledTag, categoryPlugins, menuPrefix, true);
+        text += renderCategory(emoji, title, disabledTag, categoryPlugins, menuPrefix, false);
         text += `\n\n🌟 _Use *.menu* to return to the full command atlas._`;
       } else {
         text += renderCategory(emoji, title, disabledTag, categoryPlugins, menuPrefix);
@@ -219,7 +219,9 @@ export default {
         const title = categoryTitles[cat] || cat.toUpperCase();
         const disabledTag = isGroup && disabledCats.has(cat) && showStaff ? " _(disabled)_" : "";
         const categoryPlugins = [...map.get(cat)].sort((a, b) => a.name.localeCompare(b.name));
-        const categoryText = renderCategory(emoji, title, disabledTag, categoryPlugins, menuPrefix, true);
+        // Discord receives compact command lists. Descriptions and usage belong
+        // in command help, not in the menu.
+      const categoryText = renderCategory(emoji, title, disabledTag, categoryPlugins, menuPrefix, false);
         categoryTexts.set(cat, chunkForDiscord(categoryText, 3800)[0]);
       }
 

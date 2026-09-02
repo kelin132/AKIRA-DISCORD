@@ -25,7 +25,9 @@ export default {
         return discordMessage.reply(
           `👋 **Discord Welcome Messages**\n\nStatus: ${settings.welcomeEnabled ? "✅ ON" : "❌ OFF"}\n` +
           `Channel: ${settings.welcomeChannelId ? `<#${settings.welcomeChannelId}>` : "Server system channel"}\n\n` +
-          "Use `.welcome on` or `.welcome off`. Use `.setwelcome <message>` to customize the message.",
+          "Use `.welcome on` or `.welcome off`.\n" +
+          "Use `.setwelcome <message>` to customize it.\n" +
+          "Use `.setwelcome image member|group|off` for the avatar/icon.",
         );
       }
 
@@ -66,7 +68,10 @@ Usage:
 Variables for custom message:
 • @user  — member's phone number
 • @group — group name
-• @count — total member count`,
+• @count — total member count
+• {br}   — blank line / paragraph break
+
+Image: *.setwelcome image member|group|off*`,
       }, { quoted: msg });
     }
 

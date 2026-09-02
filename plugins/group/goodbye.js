@@ -25,7 +25,9 @@ export default {
         return discordMessage.reply(
           `👋 **Discord Goodbye Messages**\n\nStatus: ${settings.goodbyeEnabled ? "✅ ON" : "❌ OFF"}\n` +
           `Channel: ${settings.goodbyeChannelId ? `<#${settings.goodbyeChannelId}>` : "Server system channel"}\n\n` +
-          "Use `.goodbye on` or `.goodbye off`. Use `.setgoodbye <message>` to customize the message.",
+          "Use `.goodbye on` or `.goodbye off`.\n" +
+          "Use `.setgoodbye <message>` to customize it.\n" +
+          "Use `.setgoodbye image member|group|off` for the avatar/icon.",
         );
       }
 
@@ -61,7 +63,15 @@ Message: ${current}
 Usage:
 • *.goodbye on* — enable goodbye messages
 • *.goodbye off* — disable goodbye messages
-• *.setgoodbye <msg>* — set custom message`,
+• *.setgoodbye <msg>* — set custom message
+
+Variables:
+• @user  — leaving member
+• @group — server name
+• @count — remaining member count
+• {br}   — blank line / paragraph break
+
+Image: *.setgoodbye image member|group|off*`,
       }, { quoted: msg });
     }
 

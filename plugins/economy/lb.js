@@ -84,19 +84,30 @@ export default {
     const flag = (args[0] || "").toLowerCase().replace(/^-+/, "");
 
     const db = await getDb();
+    const usersCollection = db.collection("users");
 
     // ── Default: wealth leaderboard (kept inline so deployed containers do not
     // depend on a separate leaderboard.js file that may not exist). ─────────
     if (!flag) {
-      const { getAllUsers } = await import("./database.js");
-      const users = (await getAllUsers())
-        .filter((user) => user?.registered !== false)
-        .map((user) => ({
-          ...user,
-          totalWealth: Number(user.money || 0) + Number(user.bank || 0),
-        }))
-        .sort((a, b) => b.totalWealth - a.totalWealth)
-        .slice(0, 10);
+      const users = await usersCollection.aggregate([
+        { $match: { registered: true } },
+        {
+          $project: {
+            name: 1,
+            username: 1,
+            money: 1,
+            bank: 1,
+            totalWealth: {
+              $add: [
+                { $ifNull: ["$money", 0] },
+                { $ifNull: ["$bank", 0] },
+              ],
+            },
+          },
+        },
+        { $sort: { totalWealth: -1, _id: 1 } },
+        { $limit: 10 },
+      ]).toArray();
 
       if (!users.length) {
         return sock.sendMessage(jid, { text: "💰 No registered players yet!" }, { quoted: msg });
@@ -131,10 +142,12 @@ export default {
 
     // ── TOP LEVELS ────────────────────────────────────────────────────────────
     if (flag === "level" || flag === "levels" || flag === "xp") {
-      const { getAllUsers } = await import("./database.js");
-      const users = (await getAllUsers())
-        .sort((a, b) => (b.level || 1) - (a.level || 1) || (b.xp || 0) - (a.xp || 0))
-        .slice(0, 10);
+      const users = await usersCollection.aggregate([
+        { $match: { registered: true } },
+        { $project: { name: 1, level: 1, xp: 1 } },
+        { $sort: { level: -1, xp: -1, _id: 1 } },
+        { $limit: 10 },
+      ]).toArray();
 
       if (!users.length) {
         return sock.sendMessage(jid, { text: "⭐ No registered players yet!" }, { quoted: msg });
@@ -157,7 +170,7 @@ export default {
       const results = await db.collection("mn_users").aggregate([
         { $match: { cards: { $exists: true, $type: "array", $ne: [] } } },
         { $project: { userId: 1, whatsappNumber: 1, username: 1, cardCount: { $size: "$cards" } } },
-        { $sort: { cardCount: -1 } },
+        { $sort: { cardCount: -1, userId: 1 } },
         { $limit: 10 },
       ]).toArray();
 
@@ -167,46 +180,24 @@ export default {
         }, { quoted: msg });
       }
 
-      // Pull full mn_users docs to get whatsappNumber (full JID) and username
-      const userIds = results.map(r => r.userId).filter(Boolean);
-      const mnDocs  = await db.collection("mn_users")
-        .find({
-          $or: [
-            { userId: { $in: userIds } },
-            { whatsappNumber: { $in: userIds } },
-          ],
-        }, { projection: { userId: 1, username: 1, whatsappNumber: 1 } })
-        .toArray();
-
-      // userId → whatsappNumber (full JID)
-      const jidMap = {};
-      for (const doc of mnDocs) {
-        if (doc.whatsappNumber) jidMap[doc.userId] = doc.whatsappNumber;
-      }
-
-      // Collect all known JIDs and look them up in the economy users collection
-      const allJids = Object.values(jidMap).filter(Boolean);
+      const allJids = results.map((result) => result.whatsappNumber).filter(Boolean);
       const econDocs = allJids.length
-        ? await db.collection("users")
+        ? await usersCollection
             .find({ _id: { $in: allJids } }, { projection: { _id: 1, name: 1 } })
             .toArray()
         : [];
 
-      // Build lookup: JID → name
-      const econNameMap = {};
-      for (const u of econDocs) econNameMap[u._id] = u.name || null;
-
-      // Final name resolver: economy name via JID → cards username → fallback
-      const mnNameMap = {};
-      for (const doc of mnDocs) {
-        const econName = econNameMap[doc.whatsappNumber] || null;
-        mnNameMap[doc.userId] = econName || doc.username || null;
-      }
+      const econNameMap = new Map(econDocs.map((user) => [String(user._id), user.name || null]));
 
       const text = formatCategoryLeaderboard({
         heading: "CARD RANKINGS",
         subtitle: "Top 10 Card Collectors",
-        rows: results.map((r) => ({ name: mnNameMap[r.userId] || `User_${String(r.userId).slice(-4)}`, value: r.cardCount })),
+        rows: results.map((result) => ({
+          name: econNameMap.get(String(result.whatsappNumber))
+            || result.username
+            || `User_${String(result.userId || "").slice(-4)}`,
+          value: result.cardCount,
+        })),
         valueIcon: "🃏",
         valueLabel: "CARDS",
         footer: "Collect • compete • become a legend",
