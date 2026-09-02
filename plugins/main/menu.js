@@ -77,6 +77,34 @@ function renderCategory(emoji, title, disabledTag, plugins, menuPrefix, detailed
   return `\n╭─${emoji} 「 ${heading} 」\n│\n${commandLines}\n╰━━━━━━━━━━━━━━━━━━━━`;
 }
 
+function chunkForDiscord(text, maxLength = 1900) {
+  const chunks = [];
+  let current = "";
+
+  for (const line of String(text).split("\n")) {
+    const next = current ? `${current}\n${line}` : line;
+    if (next.length <= maxLength) {
+      current = next;
+      continue;
+    }
+
+    if (current) chunks.push(current);
+    if (line.length <= maxLength) {
+      current = line;
+      continue;
+    }
+
+    for (let start = 0; start < line.length; start += maxLength) {
+      const piece = line.slice(start, start + maxLength);
+      if (piece.length === maxLength) chunks.push(piece);
+      else current = piece;
+    }
+  }
+
+  if (current) chunks.push(current);
+  return chunks.length ? chunks : [""];
+}
+
 export default {
   name: "menu",
   description: "Display all available commands",
@@ -85,7 +113,7 @@ export default {
   aliases: ["help", "cmds", "commands", "start"],
   cooldown: 10,
 
-  async run({ sock, msg, prefix, isOwner, isStaff, isMod, sender, args }) {
+  async run({ sock, msg, prefix, isOwner, isStaff, isMod, sender, args, discord }) {
     const jid = msg.key.remoteJid;
     const allPlugins = getPlugins();
     const isGroup = jid?.endsWith("@g.us");
@@ -96,6 +124,7 @@ export default {
     const runtime = getRuntimeSettings();
     const menuPrefix = runtime.prefix || prefix;
     const requestedCategory = normalizeCategory(args?.[0] || "");
+    const isDiscord = Boolean(discord?.message);
 
     const map = new Map();
     for (const plugin of allPlugins) {
@@ -126,8 +155,7 @@ export default {
 
     const visibleCats = requestedCategory ? [requestedCategory] : sortedCats;
     let text = requestedCategory
-      ? `*MENU*
-\n${READMORE}\n`
+      ? `*MENU*\n${isDiscord ? "" : `\n${READMORE}\n`}`
       : `*Hello ${mention}, I am ${runtime.botName}* 👋
 ╭━━━━━━━━━━━━━━━━━━━━╮
 │ ✦ *REGISTER*
@@ -136,7 +164,7 @@ export default {
 │ ├─ 🌐 ꕥ *${menuPrefix}support* › Official group
 │ └─ ⚡ ꕥ *${menuPrefix}reqbot* › Add me to your group
 ╰━━━━━━━━━━━━━━━━━━━━╯
-\n${READMORE}\n`;
+\n${isDiscord ? "" : `${READMORE}\n`}`;
 
     for (const cat of visibleCats) {
       const isCatDisabled = isGroup && disabledCats.has(cat) && !showStaff;
@@ -155,6 +183,14 @@ export default {
 
     if (isGroup && !showStaff && disabledCats.size > 0) {
       text += `\n\n🔒 *Disabled in this group:* ${[...disabledCats].join(", ")}\n_Ask a staff member to enable them._`;
+    }
+
+    if (isDiscord) {
+      const pages = chunkForDiscord(text);
+      for (const [index, page] of pages.entries()) {
+        await sock.sendMessage(jid, { text: page }, index === 0 ? { quoted: msg } : {});
+      }
+      return;
     }
 
     return sock.sendMessage(jid, {
