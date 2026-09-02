@@ -1,4 +1,9 @@
-import { isSpawnEnabled, setSpawnEnabled } from "./db.js";
+import {
+  isSpawnEnabled,
+  setSpawnEnabled,
+  isDiscordSpawnEnabled,
+  setDiscordSpawnEnabled,
+} from "./db.js";
 
 export default {
   name: "cardspawn",
@@ -9,7 +14,31 @@ export default {
   isAdmin: true,
   isOwner: true,
 
-  async run({ sock, msg, args }) {
+  async run({ sock, msg, args, discord }) {
+    const discordMessage = discord?.message;
+    if (discordMessage?.guild) {
+      const channelId = discordMessage.channelId;
+      const guildId = discordMessage.guild.id;
+      const sub = (args[0] ?? "status").toLowerCase();
+
+      if (sub === "status") {
+        const enabled = await isDiscordSpawnEnabled(guildId);
+        return discordMessage.reply(
+          `🃏 **Automatic Card Spawn**\n\nStatus: ${enabled ? "✅ ON" : "❌ OFF"}\n` +
+          "This channel receives a random card every 15–25 minutes.\n\nUse `.cardspawn on` or `.cardspawn off`.",
+        );
+      }
+      if (sub === "on") {
+        await setDiscordSpawnEnabled(guildId, channelId, true);
+        return discordMessage.reply("✅ Automatic card spawning enabled in this Discord channel.");
+      }
+      if (sub === "off") {
+        await setDiscordSpawnEnabled(guildId, channelId, false);
+        return discordMessage.reply("❌ Automatic card spawning disabled in this Discord channel.");
+      }
+      return discordMessage.reply("❌ Usage: `.cardspawn on`, `.cardspawn off`, or `.cardspawn status`.");
+    }
+
     const chatId = msg.key.remoteJid;
 
     if (!chatId.endsWith("@g.us")) {

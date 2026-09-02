@@ -12,6 +12,7 @@ const {
   handleDiscordMemberJoin,
   handleDiscordMemberLeave,
 } = await import("./lib/discordGroupEvents.mjs");
+const { startDiscordSpawners } = await import("./lib/discordSpawners.mjs");
 const { log } = await import("./lib/logger.mjs");
 const { closeDb, connectDb } = await import("./lib/mongo.mjs");
 const { startHealthServer } = await import("./lib/health.mjs");
@@ -45,6 +46,7 @@ async function start() {
     log("info", `Plugins loaded: ${totalPlugins} plugins, ${totalCommands} commands`);
 
     const client = await connectDiscord(DISCORD_TOKEN);
+    startDiscordSpawners(client);
     client.on("messageCreate", (message) => {
       handleDiscordAntiLink(message)
         .then((blocked) => blocked || routeDiscordMessage(client, message, PREFIX, OWNER_ID))

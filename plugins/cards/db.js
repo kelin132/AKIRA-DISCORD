@@ -104,3 +104,36 @@ export async function getEnabledSpawnChats() {
   const docs = await col.find({ enabled: true }).toArray();
   return docs.map(d => d.chatId);
 }
+
+export async function isDiscordSpawnEnabled(guildId) {
+  const col = await Col.spawns();
+  const doc = await col.findOne({ platform: "discord", guildId: String(guildId) });
+  return doc?.enabled === true;
+}
+
+export async function setDiscordSpawnEnabled(guildId, channelId, enabled) {
+  const col = await Col.spawns();
+  const normalizedGuildId = String(guildId);
+  await col.updateOne(
+    { platform: "discord", guildId: normalizedGuildId },
+    {
+      $set: {
+        platform: "discord",
+        guildId: normalizedGuildId,
+        channelId: String(channelId),
+        enabled: Boolean(enabled),
+      },
+    },
+    { upsert: true },
+  );
+}
+
+export async function getEnabledDiscordSpawnChannels() {
+  const col = await Col.spawns();
+  const docs = await col.find({
+    platform: "discord",
+    enabled: true,
+    channelId: { $exists: true, $ne: null },
+  }).toArray();
+  return docs.map((doc) => String(doc.channelId));
+}

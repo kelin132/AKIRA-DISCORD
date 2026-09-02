@@ -85,9 +85,14 @@ for the Discord server invite.
 ### Discord server features
 
 The Discord-native server commands include `.antilink`, `.welcome`, `.setwelcome`,
-`.goodbye`, `.setgoodbye`, and `.shazam`. Anti-link protection monitors Discord
-messages and can delete, warn, or kick. Welcome and goodbye messages use the
-placeholders `@user`, `@group`, and `@count`.
+`.goodbye`, `.setgoodbye`, `.cardspawn`, `.pokespawn`, and `.shazam`. Anti-link
+protection monitors Discord messages and can delete, warn, or kick. Welcome and
+goodbye messages use the placeholders `@user`, `@group`, and `@count`.
+
+`.cardspawn on` and `.pokespawn on` enable automatic spawns in the Discord
+channel where the command is used. `.card` and Pokémon spawn messages send their
+images/GIFs as native Discord attachments. `.p` keeps the same generated profile
+card style as WhatsApp and uses the Discord member avatar.
 
 To receive member join/leave events, enable the Server Members Intent in the
 Discord Developer Portal and set `DISCORD_ENABLE_GUILD_MEMBERS=true`.

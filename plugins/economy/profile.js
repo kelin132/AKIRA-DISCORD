@@ -84,7 +84,7 @@ export default {
   aliases: ["me", "acc", "account", "p"],
   cooldown: 5,
 
-  async run({ sock, msg, sender, isOwner, isMod, isStaff }) {
+  async run({ sock, msg, sender, isOwner, isMod, isStaff, discord }) {
     const jid = msg.key.remoteJid;
 
     const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
@@ -95,9 +95,15 @@ export default {
     const cardUser = await getCardUser(target);
     const websiteAvatar = [cardUser?.profilePictureUrl, cardUser?.profileImage, cardUser?.avatarUrl]
       .find((value) => typeof value === "string" && /^https?:\/\//i.test(value));
+    const discordAvatar = discord?.message?.author?.displayAvatarURL?.({
+      extension: "png",
+      size: 512,
+      forceStatic: true,
+    }) || null;
+    const preferredAvatar = websiteAvatar || discordAvatar;
     const [user, profilePic, pokemonCount, guild, trainer] = await Promise.all([
       getUser(target),
-      withTimeout(getProfilePic(sock, target, websiteAvatar), 2500),
+      withTimeout(getProfilePic(sock, target, preferredAvatar), 2500),
       countTrainerPokemon(target),
       withTimeout(guildSystem.getUserPrimaryGuild(target), 2500),
       withTimeout(getTrainer(target), 2500),
