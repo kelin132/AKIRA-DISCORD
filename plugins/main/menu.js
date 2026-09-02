@@ -50,29 +50,9 @@ function normalizeCategory(value = "") {
   return normalized === "poke" ? "pokemon" : normalized;
 }
 
-function formatUsage(usage, menuPrefix) {
-  if (!usage) return "";
-  return String(usage).replace(/\.(?=[a-z])/gi, menuPrefix);
-}
-
-function renderDetailedCommand(plugin, menuPrefix) {
-  const command = `${menuPrefix}${plugin.name}`;
-  const aliases = (plugin.aliases || [])
-    .filter((alias) => alias && alias !== plugin.name)
-    .map((alias) => `${menuPrefix}${alias}`);
-  const aliasLine = aliases.length ? `\n│   ◇ Also: ${aliases.join("  ·  ")}` : "";
-  const usage = formatUsage(plugin.usage, menuPrefix);
-  const usageLine = usage ? `\n│   ↳ ${usage}` : "";
-  const description = plugin.description || "Explore this command in your trainer journey.";
-
-  return `│ ✦ *${command}*${aliasLine}\n│   ${description}${usageLine}`;
-}
-
-function renderCategory(emoji, title, disabledTag, plugins, menuPrefix, detailed = false) {
+function renderCategory(emoji, title, disabledTag, plugins, menuPrefix) {
   const commandLines = plugins
-    .map((plugin) => detailed
-      ? renderDetailedCommand(plugin, menuPrefix)
-      : `│ ꕥ *${menuPrefix}${plugin.name}*`)
+    .map((plugin) => `│ ꕥ *${menuPrefix}${plugin.name}*`)
     .join("\n");
 
   const heading = disabledTag ? `*${title}*${disabledTag}` : `*${title}*`;
@@ -198,7 +178,7 @@ export default {
       const disabledTag = isGroup && disabledCats.has(cat) && showStaff ? " _(disabled)_" : "";
       const categoryPlugins = [...map.get(cat)].sort((a, b) => a.name.localeCompare(b.name));
       if (requestedCategory) {
-        text += renderCategory(emoji, title, disabledTag, categoryPlugins, menuPrefix, false);
+        text += renderCategory(emoji, title, disabledTag, categoryPlugins, menuPrefix);
         text += `\n\n🌟 _Use *.menu* to return to the full command atlas._`;
       } else {
         text += renderCategory(emoji, title, disabledTag, categoryPlugins, menuPrefix);
@@ -219,9 +199,7 @@ export default {
         const title = categoryTitles[cat] || cat.toUpperCase();
         const disabledTag = isGroup && disabledCats.has(cat) && showStaff ? " _(disabled)_" : "";
         const categoryPlugins = [...map.get(cat)].sort((a, b) => a.name.localeCompare(b.name));
-        // Discord receives compact command lists. Descriptions and usage belong
-        // in command help, not in the menu.
-      const categoryText = renderCategory(emoji, title, disabledTag, categoryPlugins, menuPrefix, false);
+        const categoryText = renderCategory(emoji, title, disabledTag, categoryPlugins, menuPrefix);
         categoryTexts.set(cat, chunkForDiscord(categoryText, 3800)[0]);
       }
 
