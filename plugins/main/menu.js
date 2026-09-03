@@ -191,10 +191,14 @@ function discordMenuPayload(token, session) {
   const footerLabel = categoryIndex < 0
     ? `Overview • ${categories.length} categories`
     : `Category ${categoryIndex + 1}/${categories.length} • ${title}`;
+  const menuImageMarkdown = `![Menu artwork](attachment://${MENU_IMAGE_NAME})`;
+  const pageDescription = categoryIndex < 0
+    ? overview
+    : categoryTexts.get(category)?.[0] || "No commands are available in this category.";
   const embed = new EmbedBuilder()
     .setColor("#9B87F5")
     .setTitle(`Hello @${displayName}, I'm ${runtime.botName}`)
-    .setDescription(categoryIndex < 0 ? overview : categoryTexts.get(category)?.[0] || "No commands are available in this category.")
+    .setDescription(`${menuImageMarkdown}\n\n${pageDescription}`)
     .setFooter({
       text: `${footerLabel} • Use the buttons to switch categories`,
     });
@@ -205,7 +209,6 @@ function discordMenuPayload(token, session) {
       inline: true,
     })).slice(0, 25));
   }
-  embed.setImage(`attachment://${MENU_IMAGE_NAME}`);
   const embeds = [embed];
   if (categoryIndex >= 0) {
     for (const chunk of (categoryTexts.get(category) || []).slice(1, 10)) {
