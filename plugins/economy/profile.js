@@ -218,6 +218,35 @@ export default {
     }
 
     try {
+      if (discord?.message) {
+        await sock.sendMessage(jid, {
+          image: imgBuffer,
+          fileName: "profile.png",
+          discordEmbed: {
+            title: `🌸 ${displayName}'s Profile`,
+            description: `${roleShort} • Level ${level} • ${roleLabel}\n${guildName}`,
+            color: "#9B87F5",
+            thumbnail: discordAvatar,
+            fields: [
+              { name: "Name", value: displayName, inline: true },
+              { name: "Age", value: String(profileAge), inline: true },
+              { name: "Role", value: role, inline: true },
+              { name: "Bio", value: profileBio.slice(0, 1024), inline: false },
+              { name: "Wallet", value: `$${Number(user.money ?? 0).toLocaleString()}`, inline: true },
+              { name: "Bank", value: `$${Number(user.bank ?? 0).toLocaleString()}`, inline: true },
+              { name: "XP", value: `${Number(xp).toLocaleString()} / ${Number(xpForLevel(level)).toLocaleString()}`, inline: true },
+              { name: "Cards", value: profileCards, inline: true },
+              { name: "Pokémon", value: profilePokemon, inline: true },
+              { name: "Badges", value: `${profileBadges}/${gymProgress.total}`, inline: true },
+              { name: "Streak", value: `${streak} day${streak === 1 ? "" : "s"}`, inline: true },
+            ],
+            image: "attachment",
+            footer: { text: "✦ AIDORU • AKIRA" },
+          },
+        }, { quoted: msg });
+        return;
+      }
+
       await sock.sendMessage(jid, { image: imgBuffer, caption }, { quoted: msg });
     } catch (err) {
       console.error(

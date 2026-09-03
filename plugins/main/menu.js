@@ -59,6 +59,23 @@ function renderCategory(emoji, title, disabledTag, plugins, menuPrefix) {
   return `\n╭─${emoji} 「 ${heading} 」\n│\n${commandLines}\n╰━━━━━━━━━━━━━━━━━━━━`;
 }
 
+function renderDiscordCategory(emoji, title, disabledTag, plugins, menuPrefix) {
+  const entries = plugins.map((plugin) => {
+    const aliases = Array.isArray(plugin.aliases)
+      ? plugin.aliases.filter((alias) => alias && alias !== plugin.name).slice(0, 5)
+      : [];
+    const usage = plugin.usage
+      ? String(plugin.usage).replace(/\./g, menuPrefix)
+      : `${menuPrefix}${plugin.name}`;
+    const aliasLine = aliases.length
+      ? `\`${aliases.map((alias) => `${menuPrefix}${alias}`).join("`  `")}\``
+      : `\`${usage}\``;
+    return `**${plugin.name}**\n${aliasLine}\n${plugin.description || "No description available."}`;
+  });
+
+  return `**${emoji} ${title}${disabledTag}**\n\n${entries.join("\n\n")}`;
+}
+
 function chunkForDiscord(text, maxLength = 1900) {
   const chunks = [];
   let current = "";
@@ -88,15 +105,23 @@ function chunkForDiscord(text, maxLength = 1900) {
 }
 
 function discordMenuPayload(token, session) {
-  const { categories, categoryTexts, categoryIndex, runtime, mention, userAvatar } = session;
-  const category = categories[categoryIndex];
-  const title = categoryTitles[category] || category.toUpperCase();
+  const {
+    categories,
+    categoryTexts,
+    categorySummaries,
+    categoryIndex,
+    runtime,
+    mention,
+    userAvatar,
+  } = session;
+  const category = categoryIndex >= 0 ? categories[categoryIndex] : null;
+  const title = category ? (categoryTitles[category] || category.toUpperCase()) : "OVERVIEW";
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(`menu:${token}:previous`)
       .setLabel("◀ Previous")
       .setStyle(ButtonStyle.Secondary)
-      .setDisabled(categoryIndex === 0),
+      .setDisabled(categoryIndex <= -1),
     new ButtonBuilder()
       .setCustomId(`menu:${token}:next`)
       .setLabel("Next ▶")
@@ -104,16 +129,38 @@ function discordMenuPayload(token, session) {
       .setDisabled(categoryIndex === categories.length - 1),
   );
 
+  const overview = [
+    `**Prefix:** \`${runtime.prefix}\``,
+    `**Commands:** ${categorySummaries.reduce((total, item) => total + item.count, 0)}`,
+    "",
+    "Choose a category below, or use the buttons to browse the full command guide.",
+  ].join("\n");
+  const footerLabel = categoryIndex < 0
+    ? `Overview • ${categories.length} categories`
+    : `Category ${categoryIndex + 1}/${categories.length} • ${title}`;
   const embed = new EmbedBuilder()
     .setColor("#9B87F5")
     .setTitle(`Hello ${mention}, I'm ${runtime.botName}`)
-    .setDescription(categoryTexts.get(category) || "No commands are available in this category.")
+    .setDescription(categoryIndex < 0 ? overview : categoryTexts.get(category)?.[0] || "No commands are available in this category.")
     .setFooter({
-      text: `Category ${categoryIndex + 1}/${categories.length} • ${title} • Use the buttons to switch categories`,
+      text: `${footerLabel} • Use the buttons to switch categories`,
     });
+  if (categoryIndex < 0) {
+    embed.addFields(categorySummaries.map((item) => ({
+      name: `${item.emoji} ${item.title}`,
+      value: `${item.count} command${item.count === 1 ? "" : "s"}`,
+      inline: true,
+    })).slice(0, 25));
+  }
   if (userAvatar) embed.setThumbnail(userAvatar);
   if (runtime.botImage) embed.setImage(runtime.botImage);
-  return { embeds: [embed], components: [row] };
+  const embeds = [embed];
+  if (categoryIndex >= 0) {
+    for (const chunk of (categoryTexts.get(category) || []).slice(1, 10)) {
+      embeds.push(new EmbedBuilder().setColor("#9B87F5").setDescription(chunk));
+    }
+  }
+  return { embeds, components: [row] };
 }
 
 export default {
@@ -194,6 +241,7 @@ export default {
     if (isDiscord) {
       const token = `${discord.message.author.id}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
       const categoryTexts = new Map();
+      const categorySummaries = [];
       for (const cat of sortedCats) {
         const isCatDisabled = isGroup && disabledCats.has(cat) && !showStaff;
         if (isCatDisabled) continue;
@@ -201,8 +249,9 @@ export default {
         const title = categoryTitles[cat] || cat.toUpperCase();
         const disabledTag = isGroup && disabledCats.has(cat) && showStaff ? " _(disabled)_" : "";
         const categoryPlugins = [...map.get(cat)].sort((a, b) => a.name.localeCompare(b.name));
-        const categoryText = renderCategory(emoji, title, disabledTag, categoryPlugins, menuPrefix);
-        categoryTexts.set(cat, chunkForDiscord(categoryText, 3800)[0]);
+        const categoryText = renderDiscordCategory(emoji, title, disabledTag, categoryPlugins, menuPrefix);
+        categoryTexts.set(cat, chunkForDiscord(categoryText, 3800));
+        categorySummaries.push({ emoji, title, count: categoryPlugins.length });
       }
 
       const categories = [...categoryTexts.keys()];
@@ -210,7 +259,8 @@ export default {
         userId: discord.message.author.id,
         categories,
         categoryTexts,
-        categoryIndex: Math.max(0, categories.indexOf(requestedCategory)),
+        categorySummaries,
+        categoryIndex: requestedCategory ? Math.max(0, categories.indexOf(requestedCategory)) : -1,
         runtime,
         mention,
         userAvatar: discord.message.author.displayAvatarURL?.({
@@ -249,7 +299,7 @@ export default {
     if (parts[2] === "previous" || parts[2] === "next") {
       const direction = parts[2] === "next" ? 1 : -1;
       session.categoryIndex = Math.max(
-        0,
+        -1,
         Math.min(
           session.categories.length - 1,
           session.categoryIndex + direction,
