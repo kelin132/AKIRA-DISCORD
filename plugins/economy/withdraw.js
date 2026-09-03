@@ -1,5 +1,6 @@
 import { getUser, saveUser, requireRegistration, addHistory } from "./database.js";
 import { parseAmount } from "./parseAmount.js";
+import { generateTransferImage } from "../../lib/economyCanvas.mjs";
 
 const MAX_WITHDRAWAL = 300_000_000_000;
 
@@ -12,7 +13,7 @@ export default {
   cooldown: 6,
   checkJail: true,
 
-  async run({ sock, msg, sender, args }) {
+  async run({ sock, msg, sender, args, discord }) {
     if (!await requireRegistration(sock, msg, sender)) return;
 
     const user = await getUser(sender);
@@ -50,8 +51,29 @@ export default {
     await saveUser(sender, user);
     await addHistory(sender, "withdraw", amount, `Withdrew $${amount.toLocaleString()} from bank`);
 
-    await sock.sendMessage(msg.key.remoteJid, {
-      text: `💰 *Withdrawal Successful!*\n\n💸 Withdrawn : $${amount.toLocaleString()}\n💰 Cash      : $${user.money.toLocaleString()}\n🏦 Bank      : $${user.bank.toLocaleString()}`
-    }, { quoted: msg });
+    const text = `💰 *Withdrawal Successful!*\n\n💸 Withdrawn : $${amount.toLocaleString()}\n💰 Cash      : $${user.money.toLocaleString()}\n🏦 Bank      : $${user.bank.toLocaleString()}`;
+    if (discord?.message) {
+      const image = await generateTransferImage({
+        direction: "withdraw",
+        amount,
+        cash: user.money,
+        bank: user.bank,
+      });
+      return sock.sendMessage(msg.key.remoteJid, {
+        image,
+        fileName: "withdrawal.png",
+        discordEmbed: {
+          title: "🏦 Withdrawal Successful",
+          description: `You withdrew **$${amount.toLocaleString()}** from your bank.`,
+          color: "#FF9F43",
+          image: "attachment",
+          fields: [
+            { name: "🏦 Bank", value: `$${user.bank.toLocaleString()}`, inline: true },
+            { name: "💰 Wallet", value: `$${user.money.toLocaleString()}`, inline: true },
+          ],
+        },
+      }, { quoted: msg });
+    }
+    return sock.sendMessage(msg.key.remoteJid, { text }, { quoted: msg });
   }
 };

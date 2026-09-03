@@ -5,6 +5,12 @@ import { getActivePet, savePet } from "../../lib/petDatabase.js";
 const COOLDOWN_MS   = 1 * 60 * 60 * 1000; // 1 hour
 const HAPPY_GAIN    = 20;
 
+function bar(value, max, len = 10, filled = "🟦") {
+  const ratio = max > 0 ? Math.max(0, Math.min(1, value / max)) : 0;
+  const filledCount = Math.round(ratio * len);
+  return filled.repeat(filledCount) + "⬛".repeat(len - filledCount);
+}
+
 const PLAY_ACTIONS = [
   "runs around excitedly",
   "does a little spin",
@@ -66,8 +72,8 @@ export default {
         ``,
         `*${pet.name}* ${action}! 💕`,
         ``,
-        `😊 Happiness: ${oldHappy}% → *${newHappy}%*`,
-        `🍖 Hunger:    ${pet.hunger ?? 100}% → *${newHunger}%* (playing made them hungry!)`,
+        `😊 Happiness: ${oldHappy}% → *${newHappy}%* ${bar(newHappy, 100, 10, "🩷")}`,
+        `🍖 Hunger:    ${pet.hunger ?? 100}% → *${newHunger}%* ${bar(newHunger, 100)}`,
         ``,
         `Next play available in *1 hour*.`,
       ].join("\n"),
