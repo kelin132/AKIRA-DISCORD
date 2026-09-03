@@ -2,7 +2,9 @@ import { getCardLeaderboard, formatCardLeaderboard } from "../../lib/cardLeaderb
 
 export default {
   name: "cardlb",
-  aliases: ["clb", "card-leaderboard", "cardtop"],
+  aliases: ["clb", "ckb", "card-leaderboard", "cardtop"],
+  discordColor: "#F1C40F",
+  discordTitle: "🏆 Leaderboard — Card Collectors",
   category: "cards",
   description: "Top 10 card collectors by total cards",
   usage: ".cardlb",

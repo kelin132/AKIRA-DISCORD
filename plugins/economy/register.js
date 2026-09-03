@@ -6,6 +6,8 @@ export default {
   category: "economy",
   usage: ".register <your_name>",
   aliases: ["reg", "signup"],
+  discordColor: "#57B894",
+  discordTitle: "✅ Welcome to AKIRA Economy",
   cooldown: 5,
 
   async run({ sock, msg, sender, text }) {

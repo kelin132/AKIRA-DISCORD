@@ -5,6 +5,7 @@
  */
 import { getUser, saveUser, requireRegistration, addHistory, getAllUsers } from "./database.js";
 import { getDb } from "../../lib/mongo.mjs";
+import { getLotteryAnnouncementChannel } from "../../lib/lotterySettings.mjs";
 
 const TICKET_PRICE  = 500;
 const MAX_TICKETS   = 10;
@@ -38,8 +39,10 @@ export default {
   cooldown: 6,
   description: "Buy lottery tickets or draw the jackpot",
   usage: ".lottery buy [amount]  |  .lottery draw  |  .lottery info",
+  discordColor: "#F1C40F",
+  discordTitle: "🎰 Lottery",
 
-  async run({ sock, msg, sender, args, isOwner, staffLevel }) {
+  async run({ sock, msg, sender, args, isOwner, staffLevel, discord }) {
     if (!await requireRegistration(sock, msg, sender)) return;
 
     const jid  = msg.key.remoteJid;
@@ -49,7 +52,10 @@ export default {
     // ── INFO ───────────────────────────────────────────────────────────────────
     if (sub === "info") {
       const lot      = await getLottery();
-      const myCount  = lot.tickets.filter(t => t.userId === sender.split("@")[0]).reduce((s, t) => s + t.count, 0);
+      const lotteryUserId = sender.startsWith("discord:")
+        ? sender
+        : sender.split("@")[0];
+      const myCount  = lot.tickets.filter(t => t.userId === lotteryUserId).reduce((s, t) => s + t.count, 0);
       const chance   = lot.totalTickets > 0 ? ((myCount / lot.totalTickets) * 100).toFixed(1) : "0.0";
       return reply(
 `╭━━━〔 🎰 𝑳𝑶𝑻𝑻𝑬𝑹𝒀 𝑰𝑵𝑭𝑶 🎟️ 〕━━━╮
@@ -76,7 +82,9 @@ export default {
       if (isNaN(count) || count < 1) return reply("❌ Usage: .lottery buy <amount>");
 
       const lot     = await getLottery();
-      const userId  = sender.split("@")[0];
+      const userId  = sender.startsWith("discord:")
+        ? sender
+        : sender.split("@")[0];
       const myEntry = lot.tickets.find(t => t.userId === userId);
       const myCount = myEntry?.count ?? 0;
 
@@ -167,11 +175,14 @@ export default {
       const prize  = lot.jackpot;
 
       // Award prize
-      const winnerJid = `${winner.userId}@s.whatsapp.net`;
-      const winUser   = await getUser(winnerJid);
+      const winnerId = String(winner.userId);
+      const winnerIdentity = winnerId.startsWith("discord:")
+        ? winnerId
+        : `${winnerId}@s.whatsapp.net`;
+      const winUser   = await getUser(winnerIdentity);
       winUser.money   += prize;
-      await saveUser(winnerJid, winUser);
-      await addHistory(winnerJid, "lottery_win", prize, `Won lottery jackpot $${prize.toLocaleString()}`);
+      await saveUser(winnerIdentity, winUser);
+      await addHistory(winnerIdentity, "lottery_win", prize, `Won lottery jackpot $${prize.toLocaleString()}`);
 
       // Reset lottery with a fresh random base jackpot
       const newBase = randomBaseJackpot();
@@ -180,12 +191,15 @@ export default {
         { $set: { tickets: [], totalTickets: 0, jackpot: newBase, baseJackpot: newBase, createdAt: new Date() } }
       );
 
-      return await sock.sendMessage(jid, {
+      const winnerMention = winnerId.startsWith("discord:")
+        ? `<@${winnerId.slice("discord:".length)}>`
+        : `@${winnerId}`;
+      const drawMessage = {
         text:
 `╭━━━〔 🎰 𝑳𝑶𝑻𝑻𝑬𝑹𝒀 𝑫𝑹𝑨𝑾 🏆 〕━━━╮
 ┃ ✦ The winning ticket has been drawn...
 ┃
-┃ 🏆 Winner  ➜ 『 ${winner.name} 』
+┃ 🏆 Winner  ➜ 『 ${winnerMention} 』
 ┃ 🎫 Tickets ➜ 『 ${winner.count} 』
 ┃
 ┣━━━━━━━━━━━━━━━━━━━━
@@ -194,8 +208,19 @@ export default {
 ┃ 🎉 𝗖𝗢𝗡𝗚𝗥𝗔𝗧𝗨𝗟𝗔𝗧𝗜𝗢𝗡𝗦!
 ┃ A new lottery has started!
 ╰━━━━━━━━━━━━━━━━━━━━╯`,
-        mentions: [winnerJid],
-      }, { quoted: msg });
+        mentions: winnerId.startsWith("discord:") ? [winnerId] : [],
+      };
+      await sock.sendMessage(jid, drawMessage, { quoted: msg });
+      const guildId = discord?.message?.guildId || msg.guildId || null;
+      const announcementChannelId = guildId
+        ? await getLotteryAnnouncementChannel(guildId)
+        : null;
+      if (announcementChannelId && String(announcementChannelId) !== String(jid)) {
+        await sock.sendMessage(announcementChannelId, drawMessage).catch((error) => {
+          console.error("[lottery] Failed to post configured announcement:", error.message);
+        });
+      }
+      return;
     }
 
     return reply(

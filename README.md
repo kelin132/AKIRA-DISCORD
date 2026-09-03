@@ -94,6 +94,16 @@ channel where the command is used. `.card` and Pokémon spawn messages send thei
 images/GIFs as native Discord attachments. `.p` keeps the same generated profile
 card style as WhatsApp and uses the Discord member avatar.
 
+Economy text replies are rendered as native Discord cards with a colored left
+rail. Leaderboards and blackjack use a gold rail, while registration uses green.
+The cached card leaderboard is available as `.cardlb` or `.ckb`; `.lb` also
+caches each leaderboard category for faster repeat requests.
+
+Lottery draws can be announced in a dedicated channel. The bot owner can select
+one per server with `.ll channel #channel`, check the current selection with
+`.ll channel`, and draw with `.ll draw`. The setting is stored per Discord
+server in MongoDB, and both `.ll draw` and `.lottery draw` post to it when set.
+
 To receive member join/leave events, enable the Server Members Intent in the
 Discord Developer Portal and set `DISCORD_ENABLE_GUILD_MEMBERS=true`.
 

@@ -40,6 +40,8 @@ export default {
   category: "economy",
   usage: ".blackjack <bet>",
   aliases: ["bj"],
+  discordColor: "#F1C40F",
+  discordTitle: "🃏 Blackjack",
   cooldown: 6,
 
   async run({ sock, msg, sender, args }) {

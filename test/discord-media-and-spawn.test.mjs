@@ -3,6 +3,20 @@ import assert from "node:assert/strict";
 import { toDiscordPayload } from "../lib/discordPayload.mjs";
 import { clearWild, getWild, setWild } from "../lib/pokemon/wildState.mjs";
 
+test("renders text replies as Discord cards with the requested accent rail", () => {
+  const payload = toDiscordPayload(
+    { text: "🏆 Leaderboard\n#1 Player — $50,000", mentions: ["discord:123456789"] },
+    { accentColor: "#F1C40F", title: "🏆 Leaderboard" },
+  );
+
+  assert.equal(payload.embeds.length, 1);
+  assert.equal(payload.embeds[0].data.color, 0xF1C40F);
+  assert.equal(payload.embeds[0].data.title, "🏆 Leaderboard");
+  assert.equal(payload.embeds[0].data.description, "🏆 Leaderboard\n#1 Player — $50,000");
+  assert.deepEqual(payload.allowedMentions, { users: ["123456789"] });
+  assert.equal(payload.content, "<@123456789>");
+});
+
 test("converts WhatsApp image URL payloads into renderable Discord attachments", () => {
   const payload = toDiscordPayload({
     image: { url: "https://cdn.example.test/card.webp" },
