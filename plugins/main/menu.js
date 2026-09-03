@@ -182,23 +182,22 @@ function discordMenuPayload(token, session) {
   const category = categoryIndex >= 0 ? categories[categoryIndex] : null;
   const title = category ? (categoryTitles[category] || category.toUpperCase()) : "OVERVIEW";
 
-  const overview = [
-    `**Prefix:** \`${runtime.prefix}\``,
-    `**Commands:** ${categorySummaries.reduce((total, item) => total + item.count, 0)}`,
-    "",
-    "Use **Browse categories** below to choose a command group.",
-  ].join("\n");
   const footerLabel = categoryIndex < 0
     ? `Overview • ${categories.length} categories`
     : `Category ${categoryIndex + 1}/${categories.length} • ${title}`;
   const pageDescription = categoryIndex < 0
-    ? overview
+    ? "Use **Browse categories** below to choose a command group."
     : categoryTexts.get(category)?.[0] || "No commands are available in this category.";
+  const totalCommands = categorySummaries.reduce((total, item) => total + item.count, 0);
   const embed = new EmbedBuilder()
-    .setColor("#9B87F5")
+    .setColor("#0099ff")
     .setTitle(`Hello @${displayName}, I'm ${runtime.botName}`)
     .setDescription(pageDescription)
-    .setThumbnail(`attachment://${MENU_IMAGE_NAME}`)
+    .setImage(`attachment://${MENU_IMAGE_NAME}`)
+    .addFields(
+      { name: "Prefix", value: `\`${runtime.prefix}\``, inline: true },
+      { name: "Commands", value: String(totalCommands), inline: true },
+    )
     .setFooter({
       text: `${footerLabel} • Use the buttons to switch categories`,
     });
@@ -212,7 +211,7 @@ function discordMenuPayload(token, session) {
   const embeds = [embed];
   if (categoryIndex >= 0) {
     for (const chunk of (categoryTexts.get(category) || []).slice(1, 10)) {
-      embeds.push(new EmbedBuilder().setColor("#9B87F5").setDescription(chunk));
+      embeds.push(new EmbedBuilder().setColor("#0099ff").setDescription(chunk));
     }
   }
   const components = session.view === "categories"
