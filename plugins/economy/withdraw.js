@@ -1,6 +1,6 @@
 import { getUser, saveUser, requireRegistration, addHistory } from "./database.js";
 import { parseAmount } from "./parseAmount.js";
-import { generateTransferImage } from "../../lib/economyCanvas.mjs";
+import { generateMoneyThumbnail, generateTransferImage } from "../../lib/economyCanvas.mjs";
 
 const MAX_WITHDRAWAL = 300_000_000_000;
 
@@ -59,14 +59,18 @@ export default {
         cash: user.money,
         bank: user.bank,
       });
+      const discordThumbnail = await generateMoneyThumbnail({ direction: "withdraw" });
       return sock.sendMessage(msg.key.remoteJid, {
         image,
+        discordThumbnail,
         fileName: "withdrawal.png",
+        thumbnailFileName: "withdraw-money.png",
         discordEmbed: {
           title: "🏦 Withdrawal Successful",
           description: `You withdrew **$${amount.toLocaleString()}** from your bank.`,
           color: "#FF9F43",
           image: "attachment",
+          thumbnail: "thumbnail-attachment",
           fields: [
             { name: "🏦 Bank", value: `$${user.bank.toLocaleString()}`, inline: true },
             { name: "💰 Wallet", value: `$${user.money.toLocaleString()}`, inline: true },

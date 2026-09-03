@@ -104,6 +104,66 @@ function chunkForDiscord(text, maxLength = 1900) {
   return chunks.length ? chunks : [""];
 }
 
+function menuBrowseButton(token) {
+  return new ButtonBuilder()
+    .setCustomId(`menu:${token}:browse`)
+    .setLabel("Browse categories")
+    .setStyle(ButtonStyle.Primary);
+}
+
+function menuOverviewComponents(token) {
+  return [
+    new ActionRowBuilder().addComponents(menuBrowseButton(token)),
+  ];
+}
+
+function menuCategoryComponents(token, categories) {
+  const rows = [];
+  for (let index = 0; index < categories.length; index += 5) {
+    const row = new ActionRowBuilder();
+    for (const category of categories.slice(index, index + 5)) {
+      row.addComponents(
+        new ButtonBuilder()
+          .setCustomId(`menu:${token}:category:${category}`)
+          .setLabel(categoryTitles[category] || category.toUpperCase())
+          .setEmoji(categoryEmojis[category] || "📌")
+          .setStyle(ButtonStyle.Secondary),
+      );
+    }
+    rows.push(row);
+  }
+
+  const backButton = new ButtonBuilder()
+    .setCustomId(`menu:${token}:back`)
+    .setLabel("↩ Back to menu")
+    .setStyle(ButtonStyle.Secondary);
+  if (rows.length < 5) {
+    rows.push(new ActionRowBuilder().addComponents(backButton));
+  } else if (rows.at(-1).components.length < 5) {
+    rows.at(-1).addComponents(backButton);
+  }
+  return rows;
+}
+
+function menuNavigationComponents(token, session) {
+  const { categoryIndex, categories } = session;
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`menu:${token}:previous`)
+        .setLabel("◀ Previous")
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(categoryIndex <= -1),
+      new ButtonBuilder()
+        .setCustomId(`menu:${token}:next`)
+        .setLabel("Next ▶")
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(categoryIndex === categories.length - 1),
+      menuBrowseButton(token),
+    ),
+  ];
+}
+
 function discordMenuPayload(token, session) {
   const {
     categories,
@@ -116,24 +176,12 @@ function discordMenuPayload(token, session) {
   } = session;
   const category = categoryIndex >= 0 ? categories[categoryIndex] : null;
   const title = category ? (categoryTitles[category] || category.toUpperCase()) : "OVERVIEW";
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`menu:${token}:previous`)
-      .setLabel("◀ Previous")
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(categoryIndex <= -1),
-    new ButtonBuilder()
-      .setCustomId(`menu:${token}:next`)
-      .setLabel("Next ▶")
-      .setStyle(ButtonStyle.Primary)
-      .setDisabled(categoryIndex === categories.length - 1),
-  );
 
   const overview = [
     `**Prefix:** \`${runtime.prefix}\``,
     `**Commands:** ${categorySummaries.reduce((total, item) => total + item.count, 0)}`,
     "",
-    "Choose a category below, or use the buttons to browse the full command guide.",
+    "Use **Browse categories** below to choose a command group.",
   ].join("\n");
   const footerLabel = categoryIndex < 0
     ? `Overview • ${categories.length} categories`
@@ -153,14 +201,18 @@ function discordMenuPayload(token, session) {
     })).slice(0, 25));
   }
   if (userAvatar) embed.setThumbnail(userAvatar);
-  if (runtime.botImage) embed.setImage(runtime.botImage);
   const embeds = [embed];
   if (categoryIndex >= 0) {
     for (const chunk of (categoryTexts.get(category) || []).slice(1, 10)) {
       embeds.push(new EmbedBuilder().setColor("#9B87F5").setDescription(chunk));
     }
   }
-  return { embeds, components: [row] };
+  const components = session.view === "categories"
+    ? menuCategoryComponents(token, categories)
+    : categoryIndex >= 0
+      ? menuNavigationComponents(token, session)
+      : menuOverviewComponents(token);
+  return { embeds, components };
 }
 
 export default {
@@ -261,6 +313,7 @@ export default {
         categoryTexts,
         categorySummaries,
         categoryIndex: requestedCategory ? Math.max(0, categories.indexOf(requestedCategory)) : -1,
+        view: requestedCategory ? "category" : "overview",
         runtime,
         mention,
         userAvatar: discord.message.author.displayAvatarURL?.({
@@ -272,6 +325,9 @@ export default {
       };
       discordMenuSessions.set(token, session);
       setTimeout(() => discordMenuSessions.delete(token), 10 * 60 * 1000).unref?.();
+      await discord.message.reply({
+        files: [{ attachment: runtime.botImage, name: "menu-image.jpg" }],
+      });
       await discord.message.reply(discordMenuPayload(token, session));
       return;
     }
@@ -296,8 +352,32 @@ export default {
       return interaction.reply({ content: "❌ This menu belongs to another user. Send `.menu` to open your own.", ephemeral: true });
     }
 
+    if (parts[2] === "browse") {
+      session.view = "categories";
+      session.categoryIndex = -1;
+      return interaction.update(discordMenuPayload(parts[1], session));
+    }
+
+    if (parts[2] === "back") {
+      session.view = "overview";
+      session.categoryIndex = -1;
+      return interaction.update(discordMenuPayload(parts[1], session));
+    }
+
+    if (parts[2] === "category") {
+      const category = normalizeCategory(parts.slice(3).join(":"));
+      const categoryIndex = session.categories.indexOf(category);
+      if (categoryIndex < 0) {
+        return interaction.reply({ content: "❌ That category is no longer available.", ephemeral: true });
+      }
+      session.view = "category";
+      session.categoryIndex = categoryIndex;
+      return interaction.update(discordMenuPayload(parts[1], session));
+    }
+
     if (parts[2] === "previous" || parts[2] === "next") {
       const direction = parts[2] === "next" ? 1 : -1;
+      session.view = "category";
       session.categoryIndex = Math.max(
         -1,
         Math.min(
