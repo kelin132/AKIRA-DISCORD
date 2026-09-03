@@ -9,9 +9,15 @@ import {
   getLotteryAnnouncementChannel,
   setLotteryAnnouncementChannel,
 } from "../../lib/lotterySettings.mjs";
+import {
+  drawLottery,
+  findLotteryTicket,
+  getDiscordParticipantId,
+  REQUIRED_LOTTERY_ENTRIES,
+} from "../../lib/lotteryDraw.mjs";
 import { generateWAMessageFromContent, proto } from "@whiskeysockets/baileys";
 
-const REQUIRED = 7; // minimum total tickets before a draw can happen
+const REQUIRED = REQUIRED_LOTTERY_ENTRIES;
 
 function lotteryUserId(sender) {
   return String(sender || "").startsWith("discord:")
@@ -28,7 +34,7 @@ export default {
   discordColor: "#F1C40F",
   discordTitle: "🎟️ Lottery",
 
-  async run({ sock, msg, sender, args, isOwner, discord }) {
+  async run({ sock, msg, sender, rawSender, args, isOwner, discord }) {
     const jid   = msg.key.remoteJid;
     const reply = (text) => sock.sendMessage(jid, { text }, { quoted: msg });
     const sub   = (args[0] || "").toLowerCase();
@@ -78,68 +84,19 @@ export default {
           return reply(`❌ Need at least ${REQUIRED} total tickets to draw.\nCurrent: ${totalTickets}`);
         }
 
-        // Build weighted pool
-        const pool = [];
-        for (const t of lot.tickets) {
-          for (let i = 0; i < (t.count || 0); i++) pool.push(t);
-        }
-
-        const winner = pool[Math.floor(Math.random() * pool.length)];
-        const prize  = lot.jackpot || 0;
-
-        // Award prize
-        const winnerId = String(winner.userId);
-        const winnerIdentity = winnerId.startsWith("discord:")
-          ? winnerId
-          : `${winnerId}@s.whatsapp.net`;
-        await db.collection("users").updateOne(
-          { _id: winnerIdentity },
-          {
-            $inc: { money: prize },
-            $setOnInsert: { name: winner.name || "User", registered: true },
-          },
-          { upsert: true },
-        );
-        await addHistory(
-          winnerIdentity,
-          "lottery_win",
-          prize,
-          `Won lottery jackpot $${prize.toLocaleString()}`,
-        );
-
-        // Reset lottery with a fresh jackpot
-        const newBase = Math.floor(Math.random() * (50_000_000 - 10_000_000 + 1)) + 10_000_000;
-        await db.collection("lottery").updateOne(
-          { _id: "current" },
-          { $set: { tickets: [], totalTickets: 0, jackpot: newBase, baseJackpot: newBase, createdAt: new Date() } }
-        );
-
-        const winnerMention = winnerId.startsWith("discord:")
-          ? `<@${winnerId.slice("discord:".length)}>`
-          : `@${winnerId}`;
-        const drawMessage = {
-          text:
-`╭━━━〔 🎰 𝑳𝑶𝑻𝑻𝑬𝑹𝒀 𝑫𝑹𝑨𝑾 🏆 〕━━━╮
-┃ ✦ The winning ticket has been drawn...
-┃
-┃ 🏆 Winner  ➜ 『 ${winnerMention} 』
-┃ 🎫 Tickets ➜ 『 ${winner.count} 』
-┃
-┣━━━━━━━━━━━━━━━━━━━━
-┃ 💰 Jackpot Won › $${prize.toLocaleString()}
-┣━━━━━━━━━━━━━━━━━━━━
-┃ 🎉 𝗖𝗢𝗡𝗚𝗥𝗔𝗧𝗨𝗟𝗔𝗧𝗜𝗢𝗡𝗦!
-┃ A new lottery has started!
-╰━━━━━━━━━━━━━━━━━━━━╯`,
-          mentions: winnerId.startsWith("discord:") ? [winnerId] : [],
-        };
-        await sock.sendMessage(jid, drawMessage, { quoted: msg });
-
         const announcementChannelId = guildId
           ? await getLotteryAnnouncementChannel(guildId)
           : null;
+        const result = await drawLottery({
+          db,
+          minimumEntries: REQUIRED,
+          guildId,
+          announcementChannelId,
+        });
+        if (!result.ok) return reply("❌ The lottery could not be drawn.");
+        await sock.sendMessage(jid, result.message, { quoted: msg });
         if (announcementChannelId && String(announcementChannelId) !== String(jid)) {
-          await sock.sendMessage(announcementChannelId, drawMessage).catch((error) => {
+          await sock.sendMessage(announcementChannelId, result.message).catch((error) => {
             console.error("[lottery] Failed to post configured announcement:", error.message);
           });
         }
@@ -170,7 +127,11 @@ export default {
       } catch (_) {
         // Fallback to plain text if poll fails
         const jackpot = lot?.jackpot ?? 0;
-        const myCount = tickets.find(t => t.userId === lotteryUserId(sender))?.count ?? 0;
+        const myCount = findLotteryTicket(
+          tickets,
+          lotteryUserId(sender),
+          getDiscordParticipantId(discord, rawSender),
+        )?.count ?? 0;
         await reply(
 `╭━━━〔 🎰 𝑳𝑶𝑻𝑻𝑬𝑹𝒀 𝑺𝑻𝑨𝑻𝑼𝑺 〕━━━╮
 ┃ 💰 Jackpot     › $${jackpot.toLocaleString()}

@@ -5,6 +5,7 @@
  */
 import { groupSettings } from "../../lib/groupSettings.js";
 import { discordSettingsKey } from "../../lib/discordGroupEvents.mjs";
+import { fetchWritableGuildChannel } from "../../lib/discordChannel.mjs";
 
 export default {
   name: "welcome",
@@ -21,11 +22,35 @@ export default {
       const key = discordSettingsKey(discordMessage.guild.id);
       const settings = groupSettings.get(key);
       const toggle = args[0]?.toLowerCase();
+
+      if (["channel", "announce", "announcement"].includes(toggle)) {
+        const channelResult = await fetchWritableGuildChannel(
+          discord,
+          discordMessage.guild.id,
+          args,
+        );
+        if (channelResult.error) return discordMessage.reply(`❌ ${channelResult.error}`);
+        if (!channelResult.channel) {
+          return discordMessage.reply(
+            `👋 **Welcome channel**\n\nCurrent channel: ${
+              settings.welcomeChannelId
+                ? `<#${settings.welcomeChannelId}>`
+                : "Server system channel"
+            }\n\nUse \`.welcome channel #channel\` to change it.`,
+          );
+        }
+        groupSettings.set(key, { welcomeChannelId: channelResult.channel.id });
+        return discordMessage.reply(
+          `✅ Welcome messages will be sent in <#${channelResult.channel.id}>.`,
+        );
+      }
+
       if (!toggle || !["on", "off"].includes(toggle)) {
         return discordMessage.reply(
           `👋 **Discord Welcome Messages**\n\nStatus: ${settings.welcomeEnabled ? "✅ ON" : "❌ OFF"}\n` +
           `Channel: ${settings.welcomeChannelId ? `<#${settings.welcomeChannelId}>` : "Server system channel"}\n\n` +
           "Use `.welcome on` or `.welcome off`.\n" +
+          "Use `.welcome channel #channel` to choose where joins are announced.\n" +
           "Use `.setwelcome <message>` to customize it.\n" +
           "Use `.setwelcome image member|group|off` for the avatar/icon.",
         );
@@ -34,7 +59,7 @@ export default {
       const enabled = toggle === "on";
       groupSettings.set(key, {
         welcomeEnabled: enabled,
-        welcomeChannelId: discordMessage.channel.id,
+        welcomeChannelId: settings.welcomeChannelId || discordMessage.channel.id,
       });
       return discordMessage.reply(enabled
         ? "✅ Welcome messages enabled for new server members."
