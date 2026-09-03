@@ -172,7 +172,6 @@ function discordMenuPayload(token, session) {
     categoryIndex,
     runtime,
     mention,
-    userAvatar,
   } = session;
   const category = categoryIndex >= 0 ? categories[categoryIndex] : null;
   const title = category ? (categoryTitles[category] || category.toUpperCase()) : "OVERVIEW";
@@ -196,11 +195,11 @@ function discordMenuPayload(token, session) {
   if (categoryIndex < 0) {
     embed.addFields(categorySummaries.map((item) => ({
       name: `${item.emoji} ${item.title}`,
-      value: `${item.count} command${item.count === 1 ? "" : "s"}`,
+      value: item.preview || `${item.count} command${item.count === 1 ? "" : "s"}`,
       inline: true,
     })).slice(0, 25));
   }
-  if (userAvatar) embed.setThumbnail(userAvatar);
+  if (runtime.botImage) embed.setImage(runtime.botImage);
   const embeds = [embed];
   if (categoryIndex >= 0) {
     for (const chunk of (categoryTexts.get(category) || []).slice(1, 10)) {
@@ -212,7 +211,12 @@ function discordMenuPayload(token, session) {
     : categoryIndex >= 0
       ? menuNavigationComponents(token, session)
       : menuOverviewComponents(token);
-  return { embeds, components };
+  return {
+    content: mention,
+    allowedMentions: { users: [session.userId] },
+    embeds,
+    components,
+  };
 }
 
 export default {
@@ -250,12 +254,10 @@ export default {
     const order = [
       "main", "economy", "company", "guild", "pets", "cards", "naruto",
       "pokemon", "dragonball", "games", "fun", "ai", "search", "media",
-      "image", "utilities", "download", "group", "admin", "anime",
-      ...(showStaff ? ["staff"] : []),
-      ...(showStaff ? ["owner"] : []),
+      "image", "utilities", "download", "group", "anime",
     ];
     const sortedCats = [
-      ...order.filter((cat) => map.has(cat)),
+      ...order.filter((cat) => map.has(cat) && PUBLIC_CATS.has(cat)),
       ...[...map.keys()].filter((cat) => !order.includes(cat) && PUBLIC_CATS.has(cat)).sort(),
     ];
 
@@ -303,7 +305,17 @@ export default {
         const categoryPlugins = [...map.get(cat)].sort((a, b) => a.name.localeCompare(b.name));
         const categoryText = renderDiscordCategory(emoji, title, disabledTag, categoryPlugins, menuPrefix);
         categoryTexts.set(cat, chunkForDiscord(categoryText, 3800));
-        categorySummaries.push({ emoji, title, count: categoryPlugins.length });
+        const commandPreview = categoryPlugins
+          .map((plugin) => `\`${menuPrefix}${plugin.name}\``)
+          .join("  ");
+        categorySummaries.push({
+          emoji,
+          title,
+          count: categoryPlugins.length,
+          preview: commandPreview.length > 1024
+            ? `${commandPreview.slice(0, 1010)}…`
+            : commandPreview,
+        });
       }
 
       const categories = [...categoryTexts.keys()];
@@ -316,18 +328,10 @@ export default {
         view: requestedCategory ? "category" : "overview",
         runtime,
         mention,
-        userAvatar: discord.message.author.displayAvatarURL?.({
-          extension: "png",
-          size: 128,
-          forceStatic: true,
-        }),
         expiresAt: Date.now() + 10 * 60 * 1000,
       };
       discordMenuSessions.set(token, session);
       setTimeout(() => discordMenuSessions.delete(token), 10 * 60 * 1000).unref?.();
-      await discord.message.reply({
-        files: [{ attachment: runtime.botImage, name: "menu-image.jpg" }],
-      });
       await discord.message.reply(discordMenuPayload(token, session));
       return;
     }
