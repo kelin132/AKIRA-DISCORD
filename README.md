@@ -104,8 +104,11 @@ one per server with `.ll channel #channel`, check the current selection with
 `.ll channel`, and draw with `.ll draw`. The setting is stored per Discord
 server in MongoDB, and both `.ll draw` and `.lottery draw` post to it when set.
 
-To receive member join/leave events, enable the Server Members Intent in the
-Discord Developer Portal and set `DISCORD_ENABLE_GUILD_MEMBERS=true`.
+To receive member join/leave events, enable the **Server Members Intent** in the
+Discord Developer Portal → Bot → Privileged Gateway Intents and set
+`DISCORD_ENABLE_GUILD_MEMBERS=true`. Restart the bot after changing either
+setting. The `.welcome` and `.goodbye` commands will show a setup warning when
+the intent is not enabled.
 
 ## 🛠 Deployment
 

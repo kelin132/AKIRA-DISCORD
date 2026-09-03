@@ -57,6 +57,16 @@ export default {
       }
 
       const enabled = toggle === "on";
+      if (
+        enabled &&
+        discord?.client?.options?.intents &&
+        !discord.client.options.intents.has?.("GuildMembers")
+      ) {
+        return discordMessage.reply(
+          "⚠️ Welcome messages need the **Server Members Intent**. " +
+          "Enable it in the Discord Developer Portal and set `DISCORD_ENABLE_GUILD_MEMBERS=true`, then restart the bot.",
+        );
+      }
       groupSettings.set(key, {
         welcomeEnabled: enabled,
         welcomeChannelId: settings.welcomeChannelId || discordMessage.channel.id,
