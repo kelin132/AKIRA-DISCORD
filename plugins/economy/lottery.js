@@ -186,6 +186,7 @@ export default {
           minimumEntries: REQUIRED_LOTTERY_ENTRIES,
           guildId,
           announcementChannelId: configuredChannel,
+          discord,
         });
         if (result.ok) {
           await sock.sendMessage(jid, result.message);
@@ -219,6 +220,7 @@ export default {
         minimumEntries: 1,
         guildId,
         announcementChannelId,
+        discord,
       });
       if (!result.ok) {
         return reply(result.reason === "empty"

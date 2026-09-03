@@ -92,6 +92,7 @@ export default {
           minimumEntries: REQUIRED,
           guildId,
           announcementChannelId,
+          discord,
         });
         if (!result.ok) return reply("❌ The lottery could not be drawn.");
         await sock.sendMessage(jid, result.message, { quoted: msg });
