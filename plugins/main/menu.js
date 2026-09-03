@@ -88,7 +88,7 @@ function chunkForDiscord(text, maxLength = 1900) {
 }
 
 function discordMenuPayload(token, session) {
-  const { categories, categoryTexts, categoryIndex, runtime, mention } = session;
+  const { categories, categoryTexts, categoryIndex, runtime, mention, userAvatar } = session;
   const category = categories[categoryIndex];
   const title = categoryTitles[category] || category.toUpperCase();
   const row = new ActionRowBuilder().addComponents(
@@ -111,6 +111,8 @@ function discordMenuPayload(token, session) {
     .setFooter({
       text: `Category ${categoryIndex + 1}/${categories.length} • ${title} • Use the buttons to switch categories`,
     });
+  if (userAvatar) embed.setThumbnail(userAvatar);
+  if (runtime.botImage) embed.setImage(runtime.botImage);
   return { embeds: [embed], components: [row] };
 }
 
@@ -211,6 +213,11 @@ export default {
         categoryIndex: Math.max(0, categories.indexOf(requestedCategory)),
         runtime,
         mention,
+        userAvatar: discord.message.author.displayAvatarURL?.({
+          extension: "png",
+          size: 128,
+          forceStatic: true,
+        }),
         expiresAt: Date.now() + 10 * 60 * 1000,
       };
       discordMenuSessions.set(token, session);

@@ -1,5 +1,5 @@
 import { findOrCreateUser, Col, uid } from "./db.js";
-import { fetchAllCards, getCard, searchCards } from "../../lib/cardApi.mjs";
+import { fetchAllCards, getCard, searchCards, resolveMediaUrl } from "../../lib/cardApi.mjs";
 import { getSeries } from "../../lib/seriesEnrich.mjs";
 
 function normaliseQuery(value) {
@@ -88,7 +88,7 @@ export default {
   description: "Get detailed info about a card in your collection",
   usage: ".ci <name, ID, or collection index>",
 
-  async run({ sock, msg, args, sender }) {
+  async run({ sock, msg, args, sender, discord }) {
     const jid   = msg.key.remoteJid;
     const reply = (text) => sock.sendMessage(jid, { text }, { quoted: msg });
 
@@ -172,6 +172,28 @@ export default {
 🔢 *Index:*    \`${indexVal}\`
 📌 *Issue:*    \`${issueVal}\`
 ━━━━━━━━━━━━━━━━━━━━━`;
+
+      if (discord?.message) {
+        const mediaUrl = card.media ? await resolveMediaUrl(card.media) : null;
+        return sock.sendMessage(jid, {
+          discordEmbed: {
+            title: "🎴 Card Info",
+            description: collNum
+              ? `Collection card **#${collNum}**`
+              : "Card details",
+            color: "#31C8FF",
+            fields: [
+              { name: "Name", value: card.name || "Unknown", inline: false },
+              { name: "Series", value: series, inline: true },
+              { name: "Tier", value: `${tier}${tierStars ? ` ${tierStars}` : ""}`, inline: true },
+              { name: "Spawn ID", value: `\`${spawnId}\``, inline: true },
+              { name: "Index", value: `\`${indexVal}\``, inline: true },
+              { name: "Issue", value: `\`${issueVal}\``, inline: true },
+            ],
+            ...(mediaUrl ? { image: mediaUrl } : {}),
+          },
+        }, { quoted: msg });
+      }
 
       return reply(text);
 
