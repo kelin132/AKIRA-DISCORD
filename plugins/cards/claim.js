@@ -1,5 +1,6 @@
 import { findOrCreateUser } from "./db.js";
 import { sendCardMedia } from "../../lib/cardApi.mjs";
+import { getSpawnKey } from "../../lib/cardSpawnKey.mjs";
 
 const activeSpawns = global.activeSpawns || (global.activeSpawns = {});
 
@@ -40,8 +41,9 @@ export default {
   description: "Claim your pending summon, spawn pack, or spawned card",
   usage: ".claim [card_id]",
 
-  async run({ sock, msg, args, sender }) {
+  async run({ sock, msg, args, sender, discord }) {
     const jid = msg.key.remoteJid;
+    const spawnKey = getSpawnKey(jid, discord);
     const reply = (text) => sock.sendMessage(jid, { text }, { quoted: msg });
 
     try {
@@ -88,20 +90,20 @@ export default {
 
       // Preserve the existing chat-wide auto-spawn claim flow.
       if (!cardIdInput) return reply("❌ No pending summon or card spawn.\n\nUse \`.claim <card_id>\` for a chat spawn.");
-      const spawn = activeSpawns[jid];
+      const spawn = activeSpawns[spawnKey];
       if (!spawn) return reply("❌ No active card spawn in this chat.");
       if (spawn.cardId !== cardIdInput) return reply("❌ Wrong Card ID! Try again.");
 
       const card = spawn.card;
       if (!card) {
-        delete activeSpawns[jid];
+        delete activeSpawns[spawnKey];
         return reply("❌ This card spawn is no longer available. Wait for the next spawn.");
       }
 
       user.cards.push(toOwnedCard(card, spawn.spawnId));
       user.totalCards = (user.totalCards || 0) + 1;
       await user.save();
-      delete activeSpawns[jid];
+      delete activeSpawns[spawnKey];
 
       const text = claimText(card, sender);
       if (card.media) {

@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { toDiscordPayload } from "../lib/discordPayload.mjs";
 import { clearWild, getWild, setWild } from "../lib/pokemon/wildState.mjs";
+import { getSpawnKey } from "../lib/cardSpawnKey.mjs";
 
 test("renders text replies as Discord cards with the requested accent rail", () => {
   const payload = toDiscordPayload(
@@ -90,4 +91,12 @@ test("wild Pokémon state is isolated by Discord channel ID", () => {
   assert.equal(getWild("discord-channel-b"), null);
 
   clearWild("discord-channel-a");
+});
+
+test("card claims use the Discord channel key used by the spawner", () => {
+  assert.equal(
+    getSpawnKey("discord:guild:channel@g.us", { message: { channelId: "channel" } }),
+    "channel",
+  );
+  assert.equal(getSpawnKey("whatsapp-group@g.us"), "whatsapp-group@g.us");
 });
