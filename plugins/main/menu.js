@@ -2,9 +2,13 @@ import { getPlugins } from "../../lib/pluginManager.mjs";
 import { groupSettings } from "../../lib/groupSettings.js";
 import { getRuntimeSettings } from "../../lib/runtimeSettings.mjs";
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from "discord.js";
+import { readFile } from "fs/promises";
+import path from "path";
 
 const READMORE = "\u200B".repeat(4000);
 const discordMenuSessions = new Map();
+const MENU_IMAGE_NAME = "menu-girl.jpg";
+const MENU_IMAGE_PATH = path.resolve("assets", MENU_IMAGE_NAME);
 
 const categoryEmojis = {
   main: "🏡", economy: "💰", guild: "⚔️", naruto: "🪾", dragonball: "🐉",
@@ -172,6 +176,8 @@ function discordMenuPayload(token, session) {
     categoryIndex,
     runtime,
     mention,
+    displayName,
+    menuImage,
   } = session;
   const category = categoryIndex >= 0 ? categories[categoryIndex] : null;
   const title = category ? (categoryTitles[category] || category.toUpperCase()) : "OVERVIEW";
@@ -187,7 +193,7 @@ function discordMenuPayload(token, session) {
     : `Category ${categoryIndex + 1}/${categories.length} • ${title}`;
   const embed = new EmbedBuilder()
     .setColor("#9B87F5")
-    .setTitle(`Hello ${mention}, I'm ${runtime.botName}`)
+    .setTitle(`Hello @${displayName}, I'm ${runtime.botName}`)
     .setDescription(categoryIndex < 0 ? overview : categoryTexts.get(category)?.[0] || "No commands are available in this category.")
     .setFooter({
       text: `${footerLabel} • Use the buttons to switch categories`,
@@ -199,7 +205,7 @@ function discordMenuPayload(token, session) {
       inline: true,
     })).slice(0, 25));
   }
-  if (runtime.botImage) embed.setImage(runtime.botImage);
+  embed.setImage(`attachment://${MENU_IMAGE_NAME}`);
   const embeds = [embed];
   if (categoryIndex >= 0) {
     for (const chunk of (categoryTexts.get(category) || []).slice(1, 10)) {
@@ -214,6 +220,7 @@ function discordMenuPayload(token, session) {
   return {
     content: mention,
     allowedMentions: { users: [session.userId] },
+    files: [{ attachment: menuImage, name: MENU_IMAGE_NAME }],
     embeds,
     components,
   };
@@ -241,6 +248,14 @@ export default {
     const mention = isDiscord
       ? `<@${discord.message.author.id}>`
       : `@${senderNum}`;
+    const displayName = isDiscord
+      ? String(
+        discord.message.member?.displayName ||
+        discord.message.author.globalName ||
+        discord.message.author.username ||
+        "there",
+      )
+      : senderNum;
 
     const map = new Map();
     for (const plugin of allPlugins) {
@@ -294,6 +309,7 @@ export default {
 
     if (isDiscord) {
       const token = `${discord.message.author.id}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+      const menuImage = await readFile(MENU_IMAGE_PATH);
       const categoryTexts = new Map();
       const categorySummaries = [];
       for (const cat of sortedCats) {
@@ -328,6 +344,8 @@ export default {
         view: requestedCategory ? "category" : "overview",
         runtime,
         mention,
+        displayName,
+        menuImage,
         expiresAt: Date.now() + 10 * 60 * 1000,
       };
       discordMenuSessions.set(token, session);
