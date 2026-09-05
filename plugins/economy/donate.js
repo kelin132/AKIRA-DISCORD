@@ -27,6 +27,10 @@ export default {
   category: "economy",
   usage: ".donate @user <amount>  OR  reply to their message: .donate <amount>",
   aliases: ["gift", "give", "givemoney"],
+  // Discord has its own native `.pay` implementation. Keeping this
+  // WhatsApp/JID-based command out of the Discord router prevents the
+  // duplicate `give` alias from dispatching the wrong handler.
+  discord: false,
   cooldown: 6,
   checkJail: true,
 

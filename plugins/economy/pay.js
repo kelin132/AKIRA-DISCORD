@@ -1,5 +1,17 @@
-import { readData, writeData } from "../../lib/store.mjs";
+import { resolveDiscordAccount } from "../../lib/accountLink.mjs";
 import { parseAmount, formatShorthand } from "./parseAmount.js";
+import { addHistory, getUser, isRegistered, saveUser } from "./database.js";
+
+async function resolveTargetDiscordId(message) {
+  const mentioned = message?.mentions?.users?.first?.();
+  if (mentioned?.id) return String(mentioned.id);
+
+  const referenceId = message?.reference?.messageId;
+  if (!referenceId || !message.channel?.messages?.fetch) return null;
+
+  const referenced = await message.channel.messages.fetch(referenceId).catch(() => null);
+  return referenced?.author?.id ? String(referenced.author.id) : null;
+}
 
 export default {
   name: "pay",
@@ -11,76 +23,59 @@ export default {
   isOwner: false,
   isAdmin: false,
   isPremium: false,
-  version: "1.2.0",
-  async run({ sock, msg, args, senderNum }) {
-    const jid = msg.key.remoteJid;
-    const ctx = msg.message?.extendedTextMessage?.contextInfo;
+  version: "1.3.0",
 
-    // ── Resolve target ─────────────────────────────────────────────────────────
-    // Priority 1: @mention in the command message
-    // Priority 2: sender of the message you replied to
-    const mentionedJid = ctx?.mentionedJid?.[0];
-    const quotedSender =
-      ctx?.participant ||                          // group quoted sender
-      (msg.quoted?.key?.participant ?? null) ||    // Baileys quoted key
-      (msg.quoted?.key?.remoteJid !== jid          // DM quoted sender
-        ? msg.quoted?.key?.remoteJid
-        : null);
+  async run({ args, sender, discord }) {
+    const message = discord?.message;
+    if (!message) return;
 
-    const targetJid = mentionedJid || quotedSender || null;
+    const reply = (content) => message.reply({ content });
+    if (String(sender).startsWith("discord:")) {
+      return reply("❌ Link your Discord account first with `.connect CODE`.");
+    }
 
-    // ── Resolve amount ─────────────────────────────────────────────────────────
-    // Last argument is always the amount — supports shortcuts: 1k 5m 1b all half
-    const eco       = readData("economy", {});
-    const sender    = eco[senderNum] ?? { coins: 0, bank: 0 };
-    const rawAmount = args[args.length - 1];
+    const targetDiscordId = await resolveTargetDiscordId(message);
+    const rawAmount = args.at(-1);
+    const giver = await getUser(sender);
+    const amount = parseAmount(rawAmount, giver.money ?? 0);
 
-    const amount    = parseAmount(rawAmount, sender.coins ?? 0);
-
-    if (!targetJid || isNaN(amount) || amount <= 0) {
-      return sock.sendMessage(
-        jid,
-        {
-          text:
-            "Usage:\n" +
-            "• *.pay @user <amount>* — mention the person\n" +
-            "• Reply to their message then *.pay <amount>*\n\n" +
-            "💡 *Shortcuts:* `1k` `5m` `1b` `1t` `all` `half`",
-        },
-        { quoted: msg }
+    if (!targetDiscordId || !Number.isFinite(amount) || amount <= 0) {
+      return reply(
+        "Usage:\n" +
+        "• `.give @user <amount>` — mention the person\n" +
+        "• Reply to their message then `.give <amount>`\n\n" +
+        "💡 Shortcuts: `1k` `5m` `1b` `1t` `all` `half`",
       );
     }
 
-    const targetNum = targetJid.replace(/[^0-9]/g, "");
-    if (targetNum === senderNum) {
-      return sock.sendMessage(jid, { text: "❌ You can't pay yourself." }, { quoted: msg });
+    const targetJid = await resolveDiscordAccount(targetDiscordId);
+    if (!targetJid) {
+      return reply("❌ That Discord user must link their WhatsApp account first with `.connect CODE`.");
+    }
+    if (targetJid === sender) {
+      return reply("❌ You can't give money to yourself.");
+    }
+    if (!(await isRegistered(sender)) || !(await isRegistered(targetJid))) {
+      return reply("❌ Both players must be registered in the economy system.");
+    }
+    if ((giver.money ?? 0) < amount) {
+      return reply(`❌ Insufficient cash. You have $${formatShorthand(giver.money ?? 0)}.`);
     }
 
-    const target = eco[targetNum] ?? { coins: 0, bank: 0 };
+    const receiver = await getUser(targetJid);
+    giver.money -= amount;
+    receiver.money = (receiver.money ?? 0) + amount;
 
-    if ((sender.coins ?? 0) < amount) {
-      return sock.sendMessage(
-        jid,
-        { text: `❌ Insufficient coins. You have *${formatShorthand(sender.coins ?? 0)}*.` },
-        { quoted: msg }
-      );
-    }
+    await saveUser(sender, giver);
+    await saveUser(targetJid, receiver);
+    await addHistory(sender, "donate_out", -amount, `Gave $${amount.toLocaleString()} to ${receiver.name}`);
+    await addHistory(targetJid, "donate_in", amount, `Received $${amount.toLocaleString()} from ${giver.name}`);
 
-    sender.coins = (sender.coins ?? 0) - amount;
-    target.coins = (target.coins ?? 0) + amount;
-    eco[senderNum] = sender;
-    eco[targetNum] = target;
-    writeData("economy", eco);
-
-    await sock.sendMessage(
-      jid,
-      {
-        text:
-          `✅ Sent *${formatShorthand(amount)}* to @${targetNum}\n` +
-          `💰 Your balance: *${formatShorthand(sender.coins)}*`,
-        mentions: [targetJid],
-      },
-      { quoted: msg }
-    );
+    return message.reply({
+      content:
+        `✅ Sent $${formatShorthand(amount)} to <@${targetDiscordId}>\n` +
+        `💰 Your balance: $${formatShorthand(giver.money)}`,
+      allowedMentions: { users: [targetDiscordId] },
+    });
   },
 };
