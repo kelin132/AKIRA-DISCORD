@@ -141,7 +141,6 @@ export default {
       }
 
       try {
-        if (discord) throw new Error("Discord uses the embed status fallback.");
         const pollMsg = generateWAMessageFromContent(
           jid,
           proto.Message.fromObject({
