@@ -1,6 +1,5 @@
 import { findOrCreateUser } from "./db.js";
 import { sendCardMedia } from "../../lib/cardApi.mjs";
-import { getSpawnKey } from "../../lib/cardSpawnKey.mjs";
 
 const activeSpawns = global.activeSpawns || (global.activeSpawns = {});
 
@@ -38,12 +37,12 @@ export default {
   name: "claim",
   aliases: ["collect"],
   category: "cards",
-  description: "Claim your pending summon or spawned card",
+  description: "Claim your pending summon, spawn pack, or spawned card",
   usage: ".claim [card_id]",
 
-  async run({ sock, msg, args, sender, discord }) {
+  async run({ sock, msg, args, sender }) {
     const jid = msg.key.remoteJid;
-    const spawnKey = getSpawnKey(jid, discord);
+    const spawnKey = msg.discordChannelId || jid;
     const reply = (text) => sock.sendMessage(jid, { text }, { quoted: msg });
 
     try {
@@ -52,7 +51,7 @@ export default {
       user.cards = Array.isArray(user.cards) ? user.cards : [];
       user.pendingCards = Array.isArray(user.pendingCards) ? user.pendingCards : [];
 
-      // Personal pending claims created by .summon.
+      // Personal pending claims created by .summon or .spawnpack.
       const hasMatchingPending = cardIdInput
         ? user.pendingCards.some((card) => String(card.cardId || "").toUpperCase() === cardIdInput)
         : user.pendingCards.length > 0;

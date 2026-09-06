@@ -26,18 +26,9 @@ export default {
         );
       }
 
-      const tickets = Array.isArray(lot.tickets)
-        ? lot.tickets.filter((ticket) => Number(ticket.count) > 0)
-        : [];
-      const totalTickets = Number(lot.totalTickets) || tickets.reduce(
-        (total, ticket) => total + (Number(ticket.count) || 0),
-        0,
-      );
-      const sorted = [...tickets].sort((a, b) => Number(b.count) - Number(a.count));
+      const sorted = [...lot.tickets].sort((a, b) => b.count - a.count);
       const rows   = sorted.map((t, i) => {
-        const chance = totalTickets > 0
-          ? ((Number(t.count) / totalTickets) * 100).toFixed(1)
-          : "0.0";
+        const chance = ((t.count / lot.totalTickets) * 100).toFixed(1);
         const medal  = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i + 1}.`;
         return `┃ ${medal} ${t.name} › ${t.count} ticket(s) · ${chance}%`;
       }).join("\n");
@@ -46,8 +37,8 @@ export default {
 `╭━━━〔 🎰 𝑳𝑶𝑻𝑻𝑬𝑹𝒀 𝑳𝑰𝑺𝑻 🎟️ 〕━━━╮
 ┃ ✦ Current round participants
 ┃
-┃ 💰 Jackpot › $${Number(lot.jackpot || 0).toLocaleString()}
-┃ 🎫 Tickets › ${totalTickets} total
+┃ 💰 Jackpot › $${lot.jackpot.toLocaleString()}
+┃ 🎫 Tickets › ${lot.totalTickets} total
 ┃
 ┣━━━━━━━━━━━━━━━━━━━━
 ${rows}

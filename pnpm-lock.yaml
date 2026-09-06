@@ -35,9 +35,6 @@ importers:
       fs-extra:
         specifier: ^11.4.0
         version: 11.4.0
-      libsodium-wrappers:
-        specifier: ^0.8.4
-        version: 0.8.4
       mongodb:
         specifier: ^7.6.0
         version: 7.6.0
@@ -509,9 +506,6 @@ packages:
   detect-libc@2.1.2:
     resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
     engines: {node: '>=8'}
-
-  discord-api-types@0.37.120:
-    resolution: {integrity: sha512-7xpNK0EiWjjDFp2nAhHXezE4OUWm7s1zhc/UXXN6hnFFU8dfoPHgV0Hx0RPiCa3ILRpdeh152icc68DGCyXYIw==}
 
   discord-api-types@0.38.53:
     resolution: {integrity: sha512-HL1zz/UuZ+bbJjA/X8Kbxx9gk8v9rJAbTeWRNYKmIdjwJ7EovjlHgoJTxcLpATfNJ+AonOtMdy3Y5MVIJAAd/A==}
@@ -1706,8 +1700,6 @@ snapshots:
   delayed-stream@1.0.0: {}
 
   detect-libc@2.1.2: {}
-
-  discord-api-types@0.37.120: {}
 
   discord-api-types@0.38.53: {}
 
