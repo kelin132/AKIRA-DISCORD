@@ -94,6 +94,12 @@ channel where the command is used. `.card` and Pokémon spawn messages send thei
 images/GIFs as native Discord attachments. `.p` keeps the same generated profile
 card style as WhatsApp and uses the Discord member avatar.
 
+Support tickets can be opened with `.create` (also `.ticket` or `.support`).
+Each ticket gets the next available name from `ticket 1` through `ticket 100`,
+a temporary role for the requester, and private access for the requester and
+moderators. A ticket closes automatically after 30 minutes if no moderator has
+responded.
+
 To receive member join/leave events, enable the Server Members Intent in the
 Discord Developer Portal and set `DISCORD_ENABLE_GUILD_MEMBERS=true`.
 

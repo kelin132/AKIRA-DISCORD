@@ -3,7 +3,7 @@
  * .lottery draw           — owner-only: draw the winning ticket
  * .lottery info           — show jackpot + your tickets
  */
-import { getUser, saveUser, requireRegistration, addHistory, getAllUsers } from "./database.js";
+import { getUser, saveUser, requireRegistration, addHistory } from "./database.js";
 import { getDb } from "../../lib/mongo.mjs";
 import { getLotteryAnnouncementChannel } from "../../lib/lotterySettings.mjs";
 import {
@@ -31,7 +31,19 @@ async function getLottery() {
     doc = { _id: "current", tickets: [], totalTickets: 0, jackpot: base, baseJackpot: base, createdAt: new Date() };
     await db.collection("lottery").insertOne(doc);
   }
-  return doc;
+  const tickets = Array.isArray(doc.tickets)
+    ? doc.tickets
+      .map((ticket) => ({ ...ticket, count: Number(ticket.count) || 0 }))
+      .filter((ticket) => ticket.count > 0)
+    : [];
+  const totalTickets = tickets.reduce((total, ticket) => total + ticket.count, 0);
+  const jackpot = Number(doc.jackpot);
+  return {
+    ...doc,
+    tickets,
+    totalTickets,
+    jackpot: Number.isFinite(jackpot) && jackpot >= 0 ? jackpot : randomBaseJackpot(),
+  };
 }
 
 async function saveLottery(data) {
@@ -70,7 +82,7 @@ export default {
 `╭━━━〔 🎰 𝑳𝑶𝑻𝑻𝑬𝑹𝒀 𝑰𝑵𝑭𝑶 🎟️ 〕━━━╮
 ┃ ✦ Try your luck — win big!
 ┃
-┃ 💰 Jackpot      › $${lot.jackpot.toLocaleString()}
+┃ 💰 Jackpot      › $${Number(lot.jackpot || 0).toLocaleString()}
 ┃ 🎫 Total Tickets › ${lot.totalTickets}
 ┃ 🎟️  Your Tickets  › ${myCount}
 ┃ 🎯 Your Chance  › ${chance}%
