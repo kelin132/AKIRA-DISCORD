@@ -8,4 +8,5 @@
 - [x] Port Utility & Database commands (ping, mods, setpokes, gcards).
 - [x] Port Downloader & Media commands (play, yt, ig, suno, fancy).
 - [x] Implement cross-platform permission and identity mapping for all commands.
-- [ ] Verify command coverage and push the complete repository.
+- [x] Verify command coverage with `npm run coverage:commands`.
+- [x] Push the complete repository to the selected AIDORU Discord repository.
