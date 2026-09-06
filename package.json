@@ -15,6 +15,7 @@
   "dependencies": {
     "@hapi/boom": "^10.0.1",
     "@whiskeysockets/baileys": "7.0.0-rc13",
+    "@distube/ytdl-core": "^4.16.12",
     "axios": "^1.20.0",
     "canvas": "^3.2.3",
     "@discordjs/voice": "^0.18.0",
@@ -25,6 +26,8 @@
     "mongodb": "^7.6.0",
     "mongoose": "^9.9.4",
     "node-fetch": "^3.3.2",
+    "libsodium-wrappers": "^0.8.4",
+    "opusscript": "^0.1.1",
     "play-dl": "^1.9.7",
     "pino": "^9.14.0",
     "yt-search": "^2.12.0",

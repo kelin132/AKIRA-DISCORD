@@ -53,7 +53,11 @@ export default {
     if (action === "join") {
       const channel = voiceChannelFor(message);
       if (!channel) return reply("Join a voice channel first, then use `.voice join`.");
-      await joinMusic(message.guild, channel);
+      try {
+        await joinMusic(message.guild, channel);
+      } catch (error) {
+        return reply(`❌ I could not join **${channel.name}**: ${error.message}`);
+      }
       return reply(`✅ Joined **${channel.name}**.`);
     }
 
@@ -63,12 +67,17 @@ export default {
       const query = args.join(" ").trim();
       if (!query) return reply("Usage: `.voice play <song or YouTube URL>`");
 
-      const result = await enqueueMusic(
-        message.guild,
-        channel,
-        query,
-        message.author?.username || "",
-      );
+      let result;
+      try {
+        result = await enqueueMusic(
+          message.guild,
+          channel,
+          query,
+          message.author?.username || "",
+        );
+      } catch (error) {
+        return reply(`❌ I could not start that track: ${error.message}`);
+      }
       const location = result.state.current?.url === result.track.url && result.position <= 1
         ? "Now playing"
         : `Added to queue at position ${result.position}`;
