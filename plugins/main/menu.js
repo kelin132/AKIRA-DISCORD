@@ -2,13 +2,9 @@ import { getPlugins } from "../../lib/pluginManager.mjs";
 import { groupSettings } from "../../lib/groupSettings.js";
 import { getRuntimeSettings } from "../../lib/runtimeSettings.mjs";
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from "discord.js";
-import { readFile } from "fs/promises";
-import path from "path";
 
 const READMORE = "\u200B".repeat(4000);
 const discordMenuSessions = new Map();
-const MENU_IMAGE_NAME = "menu-girl.jpg";
-const MENU_IMAGE_PATH = path.resolve("assets", MENU_IMAGE_NAME);
 
 const categoryEmojis = {
   main: "🏡", economy: "💰", guild: "⚔️", naruto: "🪾", dragonball: "🐉",
@@ -176,12 +172,10 @@ function discordMenuPayload(token, session) {
     categoryIndex,
     runtime,
     mention,
-    displayName,
-    menuImage,
+    userAvatar,
   } = session;
   const category = categoryIndex >= 0 ? categories[categoryIndex] : null;
   const title = category ? (categoryTitles[category] || category.toUpperCase()) : "OVERVIEW";
-
   const footerLabel = categoryIndex < 0
     ? `Overview • ${categories.length} categories`
     : `Category ${categoryIndex + 1}/${categories.length} • ${title}`;
@@ -191,9 +185,9 @@ function discordMenuPayload(token, session) {
   const totalCommands = categorySummaries.reduce((total, item) => total + item.count, 0);
   const embed = new EmbedBuilder()
     .setColor("#0099ff")
-    .setTitle(`Hello @${displayName}, I'm ${runtime.botName}`)
+    .setTitle(`Hello ${mention}, I'm ${runtime.botName}`)
     .setDescription(pageDescription)
-    .setImage(`attachment://${MENU_IMAGE_NAME}`)
+    .setImage(runtime.botImage)
     .addFields(
       { name: "Prefix", value: `\`${runtime.prefix}\``, inline: true },
       { name: "Commands", value: String(totalCommands), inline: true },
@@ -208,6 +202,7 @@ function discordMenuPayload(token, session) {
       inline: true,
     })).slice(0, 25));
   }
+  if (userAvatar) embed.setThumbnail(userAvatar);
   const embeds = [embed];
   if (categoryIndex >= 0) {
     for (const chunk of (categoryTexts.get(category) || []).slice(1, 10)) {
@@ -222,7 +217,6 @@ function discordMenuPayload(token, session) {
   return {
     content: mention,
     allowedMentions: { users: [session.userId] },
-    files: [{ attachment: menuImage, name: MENU_IMAGE_NAME }],
     embeds,
     components,
   };
@@ -250,14 +244,6 @@ export default {
     const mention = isDiscord
       ? `<@${discord.message.author.id}>`
       : `@${senderNum}`;
-    const displayName = isDiscord
-      ? String(
-        discord.message.member?.displayName ||
-        discord.message.author.globalName ||
-        discord.message.author.username ||
-        "there",
-      )
-      : senderNum;
 
     const map = new Map();
     for (const plugin of allPlugins) {
@@ -271,10 +257,12 @@ export default {
     const order = [
       "main", "economy", "company", "guild", "pets", "cards", "naruto",
       "pokemon", "dragonball", "games", "fun", "ai", "search", "media",
-      "image", "utilities", "download", "group", "anime",
+      "image", "utilities", "download", "group", "admin", "anime",
+      ...(showStaff ? ["staff"] : []),
+      ...(showStaff ? ["owner"] : []),
     ];
     const sortedCats = [
-      ...order.filter((cat) => map.has(cat) && PUBLIC_CATS.has(cat)),
+      ...order.filter((cat) => map.has(cat)),
       ...[...map.keys()].filter((cat) => !order.includes(cat) && PUBLIC_CATS.has(cat)).sort(),
     ];
 
@@ -311,7 +299,6 @@ export default {
 
     if (isDiscord) {
       const token = `${discord.message.author.id}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
-      const menuImage = await readFile(MENU_IMAGE_PATH);
       const categoryTexts = new Map();
       const categorySummaries = [];
       for (const cat of sortedCats) {
@@ -346,8 +333,11 @@ export default {
         view: requestedCategory ? "category" : "overview",
         runtime,
         mention,
-        displayName,
-        menuImage,
+        userAvatar: discord.message.author.displayAvatarURL?.({
+          extension: "png",
+          size: 128,
+          forceStatic: true,
+        }),
         expiresAt: Date.now() + 10 * 60 * 1000,
       };
       discordMenuSessions.set(token, session);
@@ -376,6 +366,19 @@ export default {
       return interaction.reply({ content: "❌ This menu belongs to another user. Send `.menu` to open your own.", ephemeral: true });
     }
 
+    if (parts[2] === "previous" || parts[2] === "next") {
+      const direction = parts[2] === "next" ? 1 : -1;
+      session.view = "category";
+      session.categoryIndex = Math.max(
+        -1,
+        Math.min(
+          session.categories.length - 1,
+          session.categoryIndex + direction,
+        ),
+      );
+      return interaction.update(discordMenuPayload(parts[1], session));
+    }
+
     if (parts[2] === "browse") {
       session.view = "categories";
       session.categoryIndex = -1;
@@ -396,19 +399,6 @@ export default {
       }
       session.view = "category";
       session.categoryIndex = categoryIndex;
-      return interaction.update(discordMenuPayload(parts[1], session));
-    }
-
-    if (parts[2] === "previous" || parts[2] === "next") {
-      const direction = parts[2] === "next" ? 1 : -1;
-      session.view = "category";
-      session.categoryIndex = Math.max(
-        -1,
-        Math.min(
-          session.categories.length - 1,
-          session.categoryIndex + direction,
-        ),
-      );
       return interaction.update(discordMenuPayload(parts[1], session));
     }
   },
