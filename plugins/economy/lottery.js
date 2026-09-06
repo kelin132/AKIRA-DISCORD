@@ -1,9 +1,9 @@
 /**
- * .lottery  — enter the global lottery ($10,000, one ticket per round)
+ * .lottery buy [tickets]  — buy lottery tickets ($500 each, max 10 per person)
  * .lottery draw           — owner-only: draw the winning ticket
  * .lottery info           — show jackpot + your tickets
  */
-import { getUser, saveUser, requireRegistration, addHistory } from "./database.js";
+import { getUser, saveUser, requireRegistration, addHistory, getAllUsers } from "./database.js";
 import { getDb } from "../../lib/mongo.mjs";
 import { getLotteryAnnouncementChannel } from "../../lib/lotterySettings.mjs";
 import {
@@ -14,8 +14,8 @@ import {
   REQUIRED_LOTTERY_ENTRIES,
 } from "../../lib/lotteryDraw.mjs";
 
-const TICKET_PRICE  = 10_000;
-const MAX_TICKETS   = 1;
+const TICKET_PRICE  = 500;
+const MAX_TICKETS   = 10;
 const MIN_JACKPOT   = 10_000_000;
 const MAX_JACKPOT   = 50_000_000;
 
@@ -31,19 +31,7 @@ async function getLottery() {
     doc = { _id: "current", tickets: [], totalTickets: 0, jackpot: base, baseJackpot: base, createdAt: new Date() };
     await db.collection("lottery").insertOne(doc);
   }
-  const tickets = Array.isArray(doc.tickets)
-    ? doc.tickets
-      .map((ticket) => ({ ...ticket, count: Number(ticket.count) || 0 }))
-      .filter((ticket) => ticket.count > 0)
-    : [];
-  const totalTickets = tickets.reduce((total, ticket) => total + ticket.count, 0);
-  const jackpot = Number(doc.jackpot);
-  return {
-    ...doc,
-    tickets,
-    totalTickets,
-    jackpot: Number.isFinite(jackpot) && jackpot >= 0 ? jackpot : randomBaseJackpot(),
-  };
+  return doc;
 }
 
 async function saveLottery(data) {
@@ -57,7 +45,7 @@ export default {
   category: "economy",
   cooldown: 6,
   description: "Buy lottery tickets or draw the jackpot",
-  usage: ".lottery  |  .lottery info  |  .lottery draw",
+  usage: ".lottery buy [amount]  |  .lottery draw  |  .lottery info",
   discordColor: "#F1C40F",
   discordTitle: "🎰 Lottery",
 
@@ -66,7 +54,7 @@ export default {
 
     const jid  = msg.key.remoteJid;
     const reply = (text) => sock.sendMessage(jid, { text }, { quoted: msg });
-    const sub  = (args[0] || "buy").toLowerCase();
+    const sub  = (args[0] || "info").toLowerCase();
 
     // ── INFO ───────────────────────────────────────────────────────────────────
     if (sub === "info") {
@@ -82,7 +70,7 @@ export default {
 `╭━━━〔 🎰 𝑳𝑶𝑻𝑻𝑬𝑹𝒀 𝑰𝑵𝑭𝑶 🎟️ 〕━━━╮
 ┃ ✦ Try your luck — win big!
 ┃
-┃ 💰 Jackpot      › $${Number(lot.jackpot || 0).toLocaleString()}
+┃ 💰 Jackpot      › $${lot.jackpot.toLocaleString()}
 ┃ 🎫 Total Tickets › ${lot.totalTickets}
 ┃ 🎟️  Your Tickets  › ${myCount}
 ┃ 🎯 Your Chance  › ${chance}%
@@ -99,9 +87,8 @@ export default {
 
     // ── BUY ────────────────────────────────────────────────────────────────────
     if (sub === "buy") {
-      const requestedCount = args[1] ? parseInt(args[1], 10) : 1;
-      if (!Number.isFinite(requestedCount) || requestedCount < 1) return reply("❌ Use `.lottery` to buy one ticket.");
-      if (requestedCount > 1) return reply("🎟️ You can only buy one ticket for the global lottery.");
+      const count = Math.max(1, parseInt(args[1]) || 1);
+      if (isNaN(count) || count < 1) return reply("❌ Usage: .lottery buy <amount>");
 
       const lot     = await getLottery();
       const userId  = sender.startsWith("discord:")
@@ -112,10 +99,18 @@ export default {
       const myCount = myEntry?.count ?? 0;
 
       if (myCount >= MAX_TICKETS) {
-        return reply("⚠️ You have already entered the global lottery.");
+        return reply(
+`╭━━━〔 🔒 𝑴𝑨𝑿 𝑻𝑰𝑪𝑲𝑬𝑻𝑺 〕━━━╮
+┃ ✦ You already hold the maximum tickets!
+┃
+┃ 🎟️ Your Tickets › ${myCount} / ${MAX_TICKETS}
+┃
+┃ 💡 Use .lotterylist to see the draw.
+╰━━━━━━━━━━━━━━━━━━━━╯`
+        );
       }
 
-      const canBuy = Math.min(requestedCount, MAX_TICKETS - myCount);
+      const canBuy = Math.min(count, MAX_TICKETS - myCount);
       const cost   = canBuy * TICKET_PRICE;
       const user   = await getUser(sender);
 
@@ -165,7 +160,20 @@ export default {
       const chance   = ((newTotal / lot.totalTickets) * 100).toFixed(1);
 
       await reply(
-        `✅ You have entered the global lottery.\n🎟️ One ticket purchased for $${cost.toLocaleString()}.\n💰 Wallet remaining: $${user.money.toLocaleString()}\n🍀 Good luck!`,
+`╭━━━〔 🎟️ 𝑻𝑰𝑪𝑲𝑬𝑻𝑺 𝑩𝑶𝑼𝑮𝑯𝑻 ✨ 〕━━━╮
+┃ ✦ You're in the draw!
+┃
+┃ 🎫 Bought   › ${canBuy} ticket(s)
+┃ 🎟️  Total   › ${newTotal} / ${MAX_TICKETS}
+┃ 🎯 Chance  › ${chance}%
+┃
+┣━━━━━━━━━━━━━━━━━━━━
+┃ 💸 Paid    › $${cost.toLocaleString()}
+┃ 👛 Wallet  › $${user.money.toLocaleString()}
+┃ 💰 Jackpot › $${lot.jackpot.toLocaleString()}
+┣━━━━━━━━━━━━━━━━━━━━
+┃ 🍀 Good luck!
+╰━━━━━━━━━━━━━━━━━━━━╯`
       );
 
       if (lot.totalTickets >= REQUIRED_LOTTERY_ENTRIES) {
@@ -209,7 +217,7 @@ export default {
         : null;
       const result = await drawLottery({
         db: getDb(),
-        minimumEntries: 1,
+        minimumEntries: REQUIRED_LOTTERY_ENTRIES,
         guildId,
         announcementChannelId,
         discord,
