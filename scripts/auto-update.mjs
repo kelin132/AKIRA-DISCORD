@@ -56,6 +56,15 @@ function hasGitRepository() {
   return existsSync(path.join(ROOT, ".git"));
 }
 
+function hasGitExecutable() {
+  try {
+    execFileSync("git", ["--version"], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function readText(file) {
   try {
     return readFileSync(file, "utf8");
@@ -100,7 +109,7 @@ async function githubRequest(url) {
 }
 
 async function updateWithoutGit() {
-  const branch = UPDATE_BRANCH || "master";
+  const branch = UPDATE_BRANCH || "main";
   const apiUrl = `https://api.github.com/repos/${UPDATE_REPOSITORY}/commits/${encodeURIComponent(branch)}`;
   const commitResponse = await githubRequest(apiUrl);
   const commit = await commitResponse.json();
@@ -264,8 +273,11 @@ async function run() {
   removeInternalLockfile();
 
   let manifestsChanged = false;
-  if (UPDATE_ENABLED && !hasGitRepository()) {
+  if (UPDATE_ENABLED && (!hasGitRepository() || !hasGitExecutable())) {
     try {
+      if (!hasGitExecutable()) {
+        log("Git executable not found; using the GitHub archive updater.");
+      }
       manifestsChanged = await updateWithoutGit();
     } catch (error) {
       warn(`GitHub archive update failed; starting the current version: ${error.message}`);
