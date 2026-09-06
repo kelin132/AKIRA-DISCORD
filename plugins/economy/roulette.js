@@ -38,7 +38,7 @@ export default {
   usage: ".roulette <red|black|even|odd|0-36> <amount>",
   checkJail: true,
 
-  async run({ sock, msg, sender, args }) {
+  async run({ sock, msg, sender, args, discord }) {
     if (!await requireRegistration(sock, msg, sender)) return;
 
     const jid   = msg.key.remoteJid;
@@ -131,6 +131,24 @@ export default {
 
     const ballLine = `${result} ${emoji} (${color === "green" ? "Green" : color === "red" ? "Red" : "Black"})`;
     const bonus = diamondReward ? `💎 Bonus: +${diamondReward} Gem${diamondReward === 1 ? "" : "s"}` : "";
+
+    if (discord?.message) {
+      return sock.sendMessage(jid, {
+        discordEmbed: {
+          title: "🎡 Roulette",
+          description: won ? "✅ You won!" : "😅 The wheel did not land your way.",
+          color: won ? "#45D483" : "#FF5D73",
+          fields: [
+            { name: "Bet Type", value: betType.toUpperCase(), inline: true },
+            { name: "Bet Amount", value: fmt(amount), inline: true },
+            { name: "Result", value: ballLine, inline: true },
+            { name: "Payout", value: won ? `+${fmt(winnings)}` : "$0", inline: true },
+            { name: "Wallet", value: fmt(user.money), inline: true },
+            ...(bonus ? [{ name: "Bonus", value: bonus, inline: true }] : []),
+          ],
+        },
+      }, { quoted: msg });
+    }
 
     return reply(formatGamblingResult({
       icon: "🎡",

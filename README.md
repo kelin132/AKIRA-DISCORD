@@ -94,14 +94,21 @@ channel where the command is used. `.card` and Pokémon spawn messages send thei
 images/GIFs as native Discord attachments. `.p` keeps the same generated profile
 card style as WhatsApp and uses the Discord member avatar.
 
-Support tickets can be opened with `.create` (also `.ticket` or `.support`).
-Each ticket gets the next available name from `ticket 1` through `ticket 100`,
-a temporary role for the requester, and private access for the requester and
-moderators. A ticket closes automatically after 30 minutes if no moderator has
-responded.
+Economy text replies are rendered as native Discord cards with a colored left
+rail. Leaderboards and blackjack use a gold rail, while registration uses green.
+The cached card leaderboard is available as `.cardlb` or `.ckb`; `.lb` also
+caches each leaderboard category for faster repeat requests.
 
-To receive member join/leave events, enable the Server Members Intent in the
-Discord Developer Portal and set `DISCORD_ENABLE_GUILD_MEMBERS=true`.
+Lottery draws can be announced in a dedicated channel. The bot owner can select
+one per server with `.ll channel #channel`, check the current selection with
+`.ll channel`, and draw with `.ll draw`. The setting is stored per Discord
+server in MongoDB, and both `.ll draw` and `.lottery draw` post to it when set.
+
+To receive member join/leave events, enable the **Server Members Intent** in the
+Discord Developer Portal → Bot → Privileged Gateway Intents and set
+`DISCORD_ENABLE_GUILD_MEMBERS=true`. Restart the bot after changing either
+setting. The `.welcome` and `.goodbye` commands will show a setup warning when
+the intent is not enabled.
 
 ## 🛠 Deployment
 

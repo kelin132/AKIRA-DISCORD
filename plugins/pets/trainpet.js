@@ -6,6 +6,12 @@ import { nextEvolStage } from "../../lib/petData.js";
 const COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes
 const BASE_EXP    = 35;
 
+function bar(value, max, len = 10, filled = "🟦") {
+  const ratio = max > 0 ? Math.max(0, Math.min(1, value / max)) : 0;
+  const filledCount = Math.round(ratio * len);
+  return filled.repeat(filledCount) + "⬛".repeat(len - filledCount);
+}
+
 const TRAIN_SCENES = [
   "sprints through the training ground",
   "practices battle stances",
@@ -81,8 +87,8 @@ export default {
       `⚡ *${pet.name}* ${scene}!`,
       ``,
       `✨ *+${expGain} EXP*${bonus > 0 ? ` (😊 Happiness Bonus +${bonus})` : ""}`,
-      `📈 EXP: ${updatedPet.exp}/${updatedPet.expNeeded}`,
-      `🍖 Hunger: ${hunger}% → *${newHunger}%*`,
+      `📈 EXP: ${updatedPet.exp}/${updatedPet.expNeeded} ${bar(updatedPet.exp, updatedPet.expNeeded)}`,
+      `🍖 Hunger: ${hunger}% → *${newHunger}%* ${bar(newHunger, 100, 8)}`,
     ];
 
     if (levelsGained > 0) {

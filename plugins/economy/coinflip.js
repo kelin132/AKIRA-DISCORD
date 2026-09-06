@@ -29,7 +29,7 @@ export default {
   usage: ".coinflip <heads|tails> <amount>",
   checkJail: true,
 
-  async run({ sock, msg, sender, args }) {
+  async run({ sock, msg, sender, args, discord }) {
     if (!await requireRegistration(sock, msg, sender)) return;
 
     const jid   = msg.key.remoteJid;
@@ -73,6 +73,41 @@ export default {
     const diamondReward = maybeAwardDiamonds(user, won ? 0.003 : 0.001, 1, 2);
     const coinEmoji = result === "heads" ? "💰 Heads" : "🌑 Tails";
     const tag   = user.name || sender.split("@")[0].split(":")[0];
+    const sendResult = (wonResult, resultDetails, payout) => {
+      if (discord?.message) {
+        return sock.sendMessage(jid, {
+          discordEmbed: {
+            title: "💰 Coin Flip",
+            description: wonResult ? "🎉 You won!" : "😅 Better luck next time.",
+            color: wonResult ? "#45D483" : "#FF5D73",
+            fields: [
+              { name: "Result", value: resultDetails, inline: true },
+              { name: "Your pick", value: normalCall.toUpperCase(), inline: true },
+              { name: "Bet", value: fmt(amount), inline: true },
+              { name: "Payout", value: payout, inline: true },
+              { name: "Wallet", value: fmt(user.money), inline: false },
+              ...(diamondReward
+                ? [{ name: "Bonus", value: `+${diamondReward} gem${diamondReward === 1 ? "" : "s"}`, inline: true }]
+                : []),
+            ],
+          },
+        }, { quoted: msg });
+      }
+      return reply(formatGamblingResult({
+        icon: "💰",
+        title: "Coin Flip",
+        won: wonResult,
+        betLabel: `Bet: ${normalCall} ×`,
+        bet: amount,
+        got: resultDetails,
+        details: [
+          wonResult ? `💎 Reward: ${fmt(amount * 2)}` : "",
+          diamondReward ? `💎 Bonus: +${diamondReward} Gem${diamondReward === 1 ? "" : "s"}` : "",
+        ],
+        net: wonResult ? amount : -amount,
+        balance: user.money,
+      }));
+    };
 
     if (won) {
       user.money += amount;
@@ -82,17 +117,11 @@ export default {
       await saveUser(sender, user);
       await addHistory(sender, "coinflip", amount, `Coinflip win: ${normalCall}`);
 
-      await reply(formatGamblingResult({
-        icon: "💰",
-        title: "Coin Flip",
-        won: true,
-        betLabel: `Bet: ${normalCall} ×`,
-        bet: amount,
-        got: coinEmoji,
-        details: [`💎 Reward: ${fmt(amount * 2)}`, diamondReward ? `💎 Bonus: +${diamondReward} Gem${diamondReward === 1 ? "" : "s"}` : ""],
-        net: amount,
-        balance: user.money,
-      }));
+      await sendResult(
+        true,
+        coinEmoji,
+        fmt(amount * 2),
+      );
 
       if (leveled) {
         const newRole = getNewlyUnlockedRole(startLevel, newLevel);
@@ -103,16 +132,7 @@ export default {
       await saveUser(sender, user);
       await addHistory(sender, "coinflip", -amount, `Coinflip loss: ${normalCall}`);
 
-      await reply(formatGamblingResult({
-        icon: "💰",
-        title: "Coin Flip",
-        betLabel: `Bet: ${normalCall} ×`,
-        bet: amount,
-        got: coinEmoji,
-        details: [diamondReward ? `💎 Bonus: +${diamondReward} Gem${diamondReward === 1 ? "" : "s"}` : ""],
-        net: -amount,
-        balance: user.money,
-      }));
+      await sendResult(false, coinEmoji, "$0");
     }
   },
 };

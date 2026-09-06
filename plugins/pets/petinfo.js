@@ -3,9 +3,10 @@
 import { getActivePet } from "../../lib/petDatabase.js";
 import { PET_SPECIES, RARITIES, currentEvolStage, nextEvolStage } from "../../lib/petData.js";
 
-function bar(value, max, len = 12) {
-  const filled = Math.round((value / max) * len);
-  return "▰".repeat(filled) + "▱".repeat(len - filled);
+function bar(value, max, len = 10, filled = "🟦") {
+  const ratio = max > 0 ? Math.max(0, Math.min(1, value / max)) : 0;
+  const filledCount = Math.round(ratio * len);
+  return filled.repeat(filledCount) + "⬛".repeat(len - filledCount);
 }
 
 export default {
@@ -44,41 +45,23 @@ export default {
     }).join("\n");
 
     const text = [
-      `꧁━━〔 📊 *P E T  D E T A I L S* 〕━━꧂`,
+      `📊 *${pet.name}*`,
+      `${sp.name || pet.species} · ${rarity.label} · ID \`${pet.petId}\``,
       ``,
-      `  ${rarity.color} *${pet.name}*`,
-      `  📖 *${sp.name || pet.species}*  ✦  ⭐ *${rarity.label}*`,
-      `  🆔 \`${pet.petId}\``,
+      `⭐ Level **${pet.level}**`,
+      `✨ XP **${pet.exp}/${pet.expNeeded}** ${bar(pet.exp, pet.expNeeded, 10, "🟦")}`,
       ``,
-      `  〔 ✨ *LEVEL & EXP* 〕`,
-      `  ━━━━━━━━━━━━━━━━━━━━━━━`,
-      `  🌀 *Level*   *${pet.level}*`,
-      `  📈 *EXP*     *${pet.exp}/${pet.expNeeded}*`,
-      `       ${bar(pet.exp, pet.expNeeded, 10)}`,
+      `❤️ HP **${pet.maxHp}**   ⚔️ Attack **${pet.attack}**`,
+      `🛡️ Defense **${pet.defense}**   ⚡ Speed **${pet.speed}**`,
       ``,
-      `  〔 ⚔️ *BATTLE STATS* 〕`,
-      `  ━━━━━━━━━━━━━━━━━━━━━━━`,
-      `  ❤️  *HP*       *${pet.maxHp}*`,
-      `  ⚔️  *Attack*   *${pet.attack}*`,
-      `  🛡  *Defense*  *${pet.defense}*`,
-      `  ⚡  *Speed*    *${pet.speed}*`,
+      `🍖 Hunger **${hunger}%** ${bar(hunger, 100, 8, "🟦")}`,
+      `😊 Happiness **${happy}%** ${bar(happy, 100, 8, "🩷")}`,
+      `🎁 Skill **${pet.skill}**`,
       ``,
-      `  〔 🌸 *WELLBEING* 〕`,
-      `  ━━━━━━━━━━━━━━━━━━━━━━━`,
-      `  🍖 *Hunger*    *${hunger}%*  ${bar(hunger, 100, 8)}`,
-      `  😊 *Happy*     *${happy}%*  ${bar(happy, 100, 8)}`,
-      ``,
-      `  〔 🎁 *SKILL* 〕`,
-      `  ━━━━━━━━━━━━━━━━━━━━━━━`,
-      `  ✦ *${pet.skill}*`,
-      ``,
-      `  〔 🔮 *EVOLUTION LINE* 〕`,
-      `  ━━━━━━━━━━━━━━━━━━━━━━━`,
+      `🔮 *Evolution path*`,
       chainStr,
       ``,
-      `  *${evolLine}*`,
-      ``,
-      `꧂━━━━━━━━━━━━━━━━━━━━━━━━꧁`,
+      evolLine,
     ].join("\n");
 
     return sock.sendMessage(jid, { text }, { quoted: msg });

@@ -3,6 +3,12 @@
 import { getAllPets, setActivePet } from "../../lib/petDatabase.js";
 import { RARITIES } from "../../lib/petData.js";
 
+function bar(value, max, len = 6, filled = "🟦") {
+  const ratio = max > 0 ? Math.max(0, Math.min(1, value / max)) : 0;
+  const filledCount = Math.round(ratio * len);
+  return filled.repeat(filledCount) + "⬛".repeat(len - filledCount);
+}
+
 export default {
   name: "pets",
   description: "Show all your pets",
@@ -40,15 +46,21 @@ export default {
     const petList = all.map((p, i) => {
       const rarity = RARITIES[p.rarity] || RARITIES.common;
       const active = p.isActive ? " 🌟" : "";
-      return `│ \`${i + 1}.\` *${p.name}*${active} [Lv. \`${p.level || 1}\`]\n│    ${rarity.color} ${rarity.label} · ⚔️ \`${p.attack}\` · ❤️ \`${p.maxHp}\`\n│    🍖 \`${p.hunger ?? 100}%\` · 😊 \`${p.happiness ?? 100}%\` · 🆔 \`${p.petId}\``;
-    }).join("\n│\n");
+      return [
+        `**${i + 1}. ${p.name}**${active} · Lv. **${p.level || 1}**`,
+        `${rarity.label} · ⚔️ ${p.attack} · ❤️ ${p.maxHp}`,
+        `🍖 ${bar(p.hunger ?? 100, 100, 6, "🟦")}  😊 ${bar(p.happiness ?? 100, 100, 6, "🩷")}`,
+        `ID \`${p.petId}\``,
+      ].join("\n");
+    }).join("\n\n");
 
-    const text = 
-`╭─❀「 🐾 *𝐏𝐄𝐓 𝐂𝐎𝐋𝐋𝐄𝐂𝐓𝐈𝐎𝐍* 」❀─╮
+    const text =
+`🐾 *PET COLLECTION*
+
 ${petList}
-│
-│ 🌸 \`.pets select <ID>\` · \`${all.length}/5\` companions
-╰───────────────❀`;
+
+Use \`.pets select <ID>\` to switch your active pet.
+Collection: **${all.length}/5**`;
 
     return sock.sendMessage(jid, { text }, { quoted: msg });
   },

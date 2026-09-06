@@ -1,5 +1,5 @@
 import { findOrCreateUser } from "./db.js";
-import { sendCardMedia, TIER_EMOJI } from "../../lib/cardApi.mjs";
+import { sendCardMedia, resolveMediaUrl, TIER_EMOJI } from "../../lib/cardApi.mjs";
 
 export default {
   name: "card",
@@ -8,7 +8,7 @@ export default {
   description: "View a card from your collection by index",
   usage: ".card <index>",
 
-  async run({ sock, msg, args, sender }) {
+  async run({ sock, msg, args, sender, discord }) {
     const jid   = msg.key.remoteJid;
     const reply = (text) => sock.sendMessage(jid, { text }, { quoted: msg });
 
@@ -63,6 +63,25 @@ export default {
 │
 │ 🃏 Card \`#${index}\` of \`${user.cards.length}\`
 ╰───────────────❀`;
+
+      if (discord?.message) {
+        const mediaUrl = card.media ? await resolveMediaUrl(card.media) : null;
+        return sock.sendMessage(jid, {
+          discordEmbed: {
+            title: "🎴 Card View",
+            description: `Card **#${index}** of **${user.cards.length}**`,
+            color: "#31C8FF",
+            fields: [
+              { name: "Name", value: card.name || "Unknown", inline: false },
+              { name: "Tier", value: `${card.tier || "Unknown"} ${emoji}`, inline: true },
+              { name: "Series", value: card.series || "Unknown", inline: true },
+              { name: "Card ID", value: `\`${card.cardId || "Unknown"}\``, inline: true },
+              { name: "Value", value: `$${(card.price || 0).toLocaleString()}`, inline: true },
+            ],
+            ...(mediaUrl ? { image: mediaUrl } : {}),
+          },
+        }, { quoted: msg });
+      }
 
       if (card.media) {
         try {

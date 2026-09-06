@@ -5,6 +5,12 @@ import { getActivePet, savePet } from "../../lib/petDatabase.js";
 const COOLDOWN_MS  = 2 * 60 * 60 * 1000; // 2 hours
 const HUNGER_GAIN  = 30;
 
+function bar(value, max, len = 10, filled = "🟦") {
+  const ratio = max > 0 ? Math.max(0, Math.min(1, value / max)) : 0;
+  const filledCount = Math.round(ratio * len);
+  return filled.repeat(filledCount) + "⬛".repeat(len - filledCount);
+}
+
 export default {
   name: "petfeed",
   description: "Feed your active pet",
@@ -51,8 +57,8 @@ export default {
       text: [
         `🍖 *${pet.name}* ate happily!`,
         ``,
-        `🍖 Hunger:  ${oldHunger}% → *${newHunger}%*`,
-        `😊 Happiness: ${pet.happiness ?? 100}% → *${newHappiness}%*`,
+        `🍖 Hunger:  ${oldHunger}% → *${newHunger}%* ${bar(newHunger, 100)}`,
+        `😊 Happiness: ${pet.happiness ?? 100}% → *${newHappiness}%* ${bar(newHappiness, 100, 10, "🩷")}`,
         ``,
         `Next feed available in *2 hours*.`,
       ].join("\n"),

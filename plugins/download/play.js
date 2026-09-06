@@ -11,7 +11,7 @@ import { playDiscordVoice } from "../../lib/discordVoice.mjs";
 
 // ── YouTube search ────────────────────────────────────────────────────────────
 
-async function ytSearch(input) {
+export async function ytSearch(input) {
   if (/youtube\.com|youtu\.be/i.test(input)) {
     return { url: input, title: input, thumbnail: null, duration: "", author: "", views: "" };
   }
@@ -45,7 +45,7 @@ function pickAudio(result) {
 
 // ── Send the track thumbnail / banner ─────────────────────────────────────────
 
-async function sendBanner(sock, jid, msg, meta, action) {
+export async function sendBanner(sock, jid, msg, meta, action) {
   const caption = [
     `🎵 *${meta.title}*`,
     meta.author   ? `👤 ${meta.author}`       : "",
@@ -77,7 +77,15 @@ async function valoreAudio(videoUrl) {
     signal: AbortSignal.timeout(45_000),
   });
 
-  const raw = await response.text();
+  let raw;
+  try {
+    raw = await response.text();
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw new Error("Valore audio request timed out after 45s");
+    }
+    throw error;
+  }
   let payload;
   try {
     payload = raw ? JSON.parse(raw) : null;

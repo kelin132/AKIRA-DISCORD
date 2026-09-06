@@ -7,6 +7,7 @@
  */
 import { groupSettings } from "../../lib/groupSettings.js";
 import { discordSettingsKey } from "../../lib/discordGroupEvents.mjs";
+import { fetchWritableGuildChannel } from "../../lib/discordChannel.mjs";
 
 export default {
   name: "setwelcome",
@@ -26,6 +27,32 @@ export default {
         .replace(/^[.!#/]?(?:setwelcome|customwelcome)\s*/i, "")
         .trim();
       const settings = groupSettings.get(key);
+
+      if (/^channel(?:\s+|$)/i.test(text)) {
+        const channelArgs = [
+          "channel",
+          ...text.replace(/^channel\s*/i, "").split(/\s+/).filter(Boolean),
+        ];
+        const channelResult = await fetchWritableGuildChannel(
+          discord,
+          discordMessage.guild.id,
+          channelArgs,
+        );
+        if (channelResult.error) return discordMessage.reply(`❌ ${channelResult.error}`);
+        if (!channelResult.channel) {
+          return discordMessage.reply(
+            `👋 **Welcome channel**\n\nCurrent channel: ${
+              settings.welcomeChannelId
+                ? `<#${settings.welcomeChannelId}>`
+                : "Server system channel"
+            }\n\nUse \`.setwelcome channel #channel\` to change it.`,
+          );
+        }
+        groupSettings.set(key, { welcomeChannelId: channelResult.channel.id });
+        return discordMessage.reply(
+          `✅ Welcome messages will be sent in <#${channelResult.channel.id}>.`,
+        );
+      }
 
       if (/^image(?:\s+|$)/i.test(text)) {
         const option = text.replace(/^image\s*/i, "").toLowerCase() || "help";
@@ -58,7 +85,8 @@ export default {
           "Placeholders: `@user`, `@group`, `@count`, `@pp`, `@gp`, `{br}`\n\n" +
           "Usage: `.setwelcome Welcome @user to @group{br}Please read the rules.`\n\n" +
           "Image: `.setwelcome image member|group|off`\n" +
-          "Card style: `.setwelcome card on|off`",
+           "Card style: `.setwelcome card on|off`\n" +
+           "Channel: `.setwelcome channel #channel`",
         );
       }
       if (text.toLowerCase() === "reset") {
@@ -68,7 +96,7 @@ export default {
       }
       groupSettings.set(key, {
         welcome: text,
-        welcomeChannelId: discordMessage.channel.id,
+        welcomeChannelId: settings.welcomeChannelId || discordMessage.channel.id,
       });
       return discordMessage.reply(
         "✅ Welcome message saved. Use `@user`, `@group`, `@count`, and `{br}` for paragraph spacing.",
