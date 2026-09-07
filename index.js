@@ -13,6 +13,10 @@ const {
   handleDiscordMemberLeave,
 } = await import("./lib/discordGroupEvents.mjs");
 const { startDiscordSpawners } = await import("./lib/discordSpawners.mjs");
+const {
+  handleDisboardConfirmation,
+  startDiscordBumpScheduler,
+} = await import("./lib/discordBump.mjs");
 const { log } = await import("./lib/logger.mjs");
 const { closeDb, connectDb } = await import("./lib/mongo.mjs");
 const { startHealthServer } = await import("./lib/health.mjs");
@@ -47,8 +51,14 @@ async function start() {
 
     const client = await connectDiscord(DISCORD_TOKEN);
     startDiscordSpawners(client);
+    await startDiscordBumpScheduler(client);
     client.on("messageCreate", (message) => {
-      handleDiscordAntiLink(message)
+      handleDisboardConfirmation(message)
+        .catch((error) => {
+          log("error", `DISBOARD confirmation handler failed: ${error.stack || error}`);
+          return false;
+        })
+        .then(() => handleDiscordAntiLink(message))
         .then((blocked) => blocked || routeDiscordMessage(client, message, PREFIX, OWNER_ID))
         .catch((error) => {
         log("error", `Unhandled message error: ${error.stack || error.message}`);

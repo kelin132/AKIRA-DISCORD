@@ -127,24 +127,7 @@ export default {
       lot.totalTickets += canBuy;
       await saveLottery(lot);
 
-      const newTotal = (myCount + canBuy);
-      const chance   = ((newTotal / lot.totalTickets) * 100).toFixed(1);
-
-      await reply(
-`╭━━━〔 🎟️ 𝑻𝑰𝑪𝑲𝑬𝑻𝑺 𝑩𝑶𝑼𝑮𝑯𝑻 ✨ 〕━━━╮
-┃ ✦ You're in the draw!
-┃
-┃ 🎫 Ticket   › purchased
-┃ 🎯 Chance  › ${chance}%
-┃
-┣━━━━━━━━━━━━━━━━━━━━
-┃ 💸 Paid    › $${cost.toLocaleString()}
-┃ 👛 Wallet  › $${user.money.toLocaleString()}
-┃ 💰 Jackpot › $${lot.jackpot.toLocaleString()}
-┣━━━━━━━━━━━━━━━━━━━━
-┃ 🍀 Good luck!
-╰━━━━━━━━━━━━━━━━━━━━╯`
-      );
+      await reply("✅ You have entered the global lottery.");
 
       if (lot.totalTickets >= REQUIRED_LOTTERY_ENTRIES) {
         const guildId = discord?.message?.guildId || msg.guildId || null;
