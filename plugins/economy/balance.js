@@ -1,6 +1,5 @@
 import { getUser, requireRegistration } from "./database.js";
 import { formatAccountBalance } from "./balanceFormat.js";
-import { compactMoney } from "../../lib/compactMoney.mjs";
 
 export default {
   name: "balance",
@@ -23,12 +22,28 @@ export default {
     });
 
     if (discord?.message) {
+      const displayName = discord.message.member?.displayName
+        || discord.message.author?.globalName
+        || discord.message.author?.username
+        || "Your";
       return sock.sendMessage(jid, {
-        text: [
-          "💳 Balance:",
-          `🪙 Wallet: ${compactMoney(user.money || 0)}.`,
-          `🏦 Bank: ${compactMoney(user.bank || 0)}.`,
-        ].join(" "),
+        discordEmbed: {
+          title: `${displayName}'s Balance 🌸`,
+          description: "Here are your current funds:",
+          color: "#6875F5",
+          fields: [
+            {
+              name: "🪙 Wallet",
+              value: `$${Number(user.money || 0).toLocaleString("en-US")}`,
+              inline: false,
+            },
+            {
+              name: "🏦 Bank",
+              value: `$${Number(user.bank || 0).toLocaleString("en-US")}`,
+              inline: false,
+            },
+          ],
+        },
         mentions: [sender],
       }, { quoted: msg });
     }
