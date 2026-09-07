@@ -1,6 +1,6 @@
 import { getUser, saveUser, requireRegistration, addHistory, maybeAwardDiamonds, checkLevelUp } from "./database.js";
 import { DIG_LOOT, SHOP_ITEMS, rollLoot } from "./_items.js";
-import { flattenEconomyText, sendEconomyReply } from "../../lib/discordEconomyReply.mjs";
+import { sendEconomyReply } from "../../lib/discordEconomyReply.mjs";
 import { compactMoney } from "../../lib/compactMoney.mjs";
 
 const COOLDOWN = 10 * 1000; // 10 seconds
@@ -13,8 +13,7 @@ export default {
   name: "dig",
   aliases: ["mine"],
   category: "economy",
-  cooldown: 6,
-  description: "Dig for buried treasure — cash, items, or orbs (10 sec cooldown)",
+  description: "Dig for buried treasure — cash, items, or orbs",
   usage: ".dig",
 
   async run({ sock, msg, sender, discord }) {
@@ -30,8 +29,6 @@ export default {
       title: options.title || "⛏️ Digging",
       color: options.color || "#57B894",
       fields: options.fields || [],
-      simpleText: options.simpleText
-        ?? `⛏️ dig: ${flattenEconomyText(text)}`,
       mentions: [sender],
     });
     const now   = Date.now();

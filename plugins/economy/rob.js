@@ -1,27 +1,31 @@
 import { getUser, saveUser, requireRegistration, isRegistered, addHistory } from "./database.js";
 import { hasActiveGun } from "../../lib/economySecurity.mjs";
 import { compactMoney } from "../../lib/compactMoney.mjs";
+import { sendEconomyReply } from "../../lib/discordEconomyReply.mjs";
 
 function fmt(n) {
   return compactMoney(n);
 }
 
 function robReply({ sock, jid, msg, discord, text, title, description, color, fields = [], mentions = [] }) {
-  if (discord) {
-    const details = fields
-      .map(({ name, value }) => `${name}: ${value}`)
-      .join(". ");
-    const simpleText = `🦹 rob: ${description || title}${details ? ` ${details}.` : ""}`;
-    return sock.sendMessage(jid, { text: simpleText, mentions }, { quoted: msg });
-  }
-  return sock.sendMessage(jid, { text, mentions }, { quoted: msg });
+  return sendEconomyReply({
+    sock,
+    jid,
+    msg,
+    discord,
+    text: text || description || title,
+    title,
+    description,
+    color,
+    fields,
+    mentions,
+  });
 }
 
 export default {
   name: "rob",
-  description: "Rob another user — 55% success rate (45-min cooldown)",
+  description: "Rob another user — 55% success rate",
   category: "economy",
-  cooldown: 6,
   usage: ".rob @user",
   checkJail: true,
 

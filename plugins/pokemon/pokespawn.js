@@ -2,6 +2,7 @@
 // [Mod/Owner] Enable or disable automatic Pokémon spawning in this group
 
 import { getDb } from "../../lib/mongo.mjs";
+import { spawnDiscordPokemonNow } from "../../lib/discordSpawners.mjs";
 
 const COLLECTION = "pokemon_autospawn_chats";
 
@@ -63,7 +64,12 @@ export default {
       const sub = (args[0] || "status").toLowerCase();
       if (sub === "on" || sub === "enable") {
         await setDiscordPokeSpawn(guildId, channelId, true);
-        return discordMessage.reply("✅ Pokémon auto-spawn enabled in this Discord channel.");
+        const spawned = await spawnDiscordPokemonNow(discordMessage.client, channelId);
+        return discordMessage.reply(
+          spawned
+            ? "✅ Pokémon auto-spawn enabled. A wild Pokémon has spawned in this channel."
+            : "✅ Pokémon auto-spawn enabled. The next wild Pokémon will appear automatically.",
+        );
       }
       if (sub === "off" || sub === "disable") {
         await setDiscordPokeSpawn(guildId, channelId, false);

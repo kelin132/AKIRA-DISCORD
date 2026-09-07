@@ -9,9 +9,9 @@ function fmt(n) {
 
 export default {
   name: "daily",
-  description: "Claim your daily reward (24-hour cooldown)",
+  description: "Claim your daily reward",
   category: "economy",
-  cooldown: 6,
+  discordPlainText: true,
   usage: ".daily",
   aliases: ["dailyclaim"],
 
@@ -29,15 +29,7 @@ export default {
       const minutes   = Math.floor((remaining % (60 * 60 * 1000)) / (60 * 1000));
 
       return sock.sendMessage(jid, {
-        text:
-`╭─❀「 🌟 *𝐃𝐀𝐈𝐋𝐘* 」❀─╮
-│ 🌙 *Result*  :: *ALREADY CLAIMED 🔴*
-│ 🍃 *Flavour* :: _すでに受け取り済み！_
-│
-│ 🕐 *Next*    :: *${hours}h ${minutes}m*
-│
-│  >  More daily rewards can be claimed on the website 
-╰───────────────❀`
+        text: `You already claimed your daily reward.\nNext claim: ${hours}h ${minutes}m.`,
       }, { quoted: msg });
     }
 
@@ -52,16 +44,9 @@ export default {
     await saveUser(sender, user);
 
     const caption =
-`╭─❀「 🌟 *𝐃𝐀𝐈𝐋𝐘* 」❀─╮
-│ 🌙 *Result*  :: *CLAIMED 🟢*
-│ 🍃 *Flavour* :: _今日も頑張ろう！_
-│
-│ 💰 *Reward*  :: *+${fmt(reward)}*
-│ 🔮 *XP*      :: *+${xpBonus}*
-│ 💰 *Wallet*  :: *${fmt(user.money)}*
-│ 
-│ ⭐ *Level ${user.level}*  🔥 *Streak active!*${leveled ? `\n│\n│ 🎉 *LEVEL UP!* — Now Level ${user.level}` : ""}
-╰───────────────❀`;
+`You claimed your daily reward of ${fmt(reward)} coins.
+Streak bonus: +${xpBonus} XP.
+Wallet: ${fmt(user.money)} coins.${leveled ? `\nLevel up: ${newLevel}.` : ""}`;
 
     await sock.sendMessage(jid, { text: caption }, { quoted: msg });
   },

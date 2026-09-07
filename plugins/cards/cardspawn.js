@@ -4,6 +4,7 @@ import {
   isDiscordSpawnEnabled,
   setDiscordSpawnEnabled,
 } from "./db.js";
+import { spawnDiscordCardNow } from "../../lib/discordSpawners.mjs";
 
 export default {
   name: "cardspawn",
@@ -25,12 +26,17 @@ export default {
         const enabled = await isDiscordSpawnEnabled(guildId);
         return discordMessage.reply(
           `🃏 **Automatic Card Spawn**\n\nStatus: ${enabled ? "✅ ON" : "❌ OFF"}\n` +
-          "This channel receives a random card every 15–25 minutes.\n\nUse `.cardspawn on` or `.cardspawn off`.",
+          "This channel receives a random card every 20–25 minutes.\n\nUse `.cardspawn on` or `.cardspawn off`.",
         );
       }
       if (sub === "on") {
         await setDiscordSpawnEnabled(guildId, channelId, true);
-        return discordMessage.reply("✅ Automatic card spawning enabled in this Discord channel.");
+        const spawned = await spawnDiscordCardNow(discordMessage.client, channelId);
+        return discordMessage.reply(
+          spawned
+            ? "✅ Automatic card spawning enabled. A card has spawned in this channel."
+            : "✅ Automatic card spawning enabled. The next card will appear automatically.",
+        );
       }
       if (sub === "off") {
         await setDiscordSpawnEnabled(guildId, channelId, false);

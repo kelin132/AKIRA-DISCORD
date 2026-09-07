@@ -39,9 +39,8 @@ export default {
   name: "beg",
   aliases: ["spare", "panhandle"],
   category: "economy",
-  description: "Beg for a small amount of money (3-min cooldown)",
+  description: "Beg for a small amount of money",
   usage: ".beg",
-  cooldown: 5,
 
   async run({ sock, msg, sender, discord }) {
     if (!await requireRegistration(sock, msg, sender)) return;

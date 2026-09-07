@@ -1,6 +1,6 @@
 import { getUser, saveUser, requireRegistration, addHistory, checkLevelUp } from "./database.js";
 import { FISH_LOOT, SHOP_ITEMS, rollLoot } from "./_items.js";
-import { flattenEconomyText, sendEconomyReply } from "../../lib/discordEconomyReply.mjs";
+import { sendEconomyReply } from "../../lib/discordEconomyReply.mjs";
 import { compactMoney } from "../../lib/compactMoney.mjs";
 
 const COOLDOWN = 10 * 1000; // 10 seconds
@@ -13,8 +13,7 @@ export default {
   name: "fish",
   aliases: ["fishing"],
   category: "economy",
-  cooldown: 6,
-  description: "Go fishing for cash, items, or orbs (10 sec cooldown)",
+  description: "Go fishing for cash, items, or orbs",
   usage: ".fish",
 
   async run({ sock, msg, sender, discord }) {
@@ -30,8 +29,6 @@ export default {
       title: options.title || "🎣 Fishing",
       color: options.color || "#3498DB",
       fields: options.fields || [],
-      simpleText: options.simpleText
-        ?? `🎣 fish: ${flattenEconomyText(text)}`,
       mentions: [sender],
     });
     const now   = Date.now();

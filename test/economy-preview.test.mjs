@@ -6,22 +6,17 @@ import {
 } from "../lib/economyPreview.mjs";
 import { toDiscordPayload } from "../lib/discordPayload.mjs";
 
-test("daily, weekly, and monthly rewards use AIDORU destinations", async () => {
-  const expected = {
-    daily: "https://aidoru.zone.id/journey",
-    weekly: "https://aidoru.zone.id/arcade",
-    monthly: "https://aidoru.zone.id/arcade",
-  };
+test("daily rewards use the AIDORU destination", async () => {
+  const url = "https://aidoru.zone.id/journey";
+  const config = getEconomyPreviewConfig("daily");
+  const preview = await buildEconomyLinkPreview("daily");
 
-  for (const [command, url] of Object.entries(expected)) {
-    const config = getEconomyPreviewConfig(command);
-    const preview = await buildEconomyLinkPreview(command);
-
-    assert.equal(config?.url, url);
-    assert.equal(preview?.["canonical-url"], url);
-    assert.equal(preview?.["matched-text"], url);
-    assert.ok(Buffer.isBuffer(preview?.jpegThumbnail));
-  }
+  assert.equal(config?.url, url);
+  assert.equal(preview?.["canonical-url"], url);
+  assert.equal(preview?.["matched-text"], url);
+  assert.ok(Buffer.isBuffer(preview?.jpegThumbnail));
+  assert.equal(getEconomyPreviewConfig("weekly"), null);
+  assert.equal(getEconomyPreviewConfig("monthly"), null);
 });
 
 test("reward text with a link preview becomes a clickable Discord image embed", async () => {

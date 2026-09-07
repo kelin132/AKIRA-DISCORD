@@ -20,8 +20,6 @@ export const DEFAULTS = {
   inventory:     [],
   history:       [],          // last 10 transactions [{type,amount,desc,ts}]
   lastDaily:     0,
-  lastWeekly:    0,
-  lastMonthly:   0,
   lastWork:      0,
   lastRest:      0,
   job:           null,        // current job key, null = unemployed
@@ -99,7 +97,7 @@ const ATOMIC_FIELDS = new Set([
 // (sets lastSlots=T), then .bet saves (with lastSlots=0 from a pre-slots getUser
 // snapshot) and wipes the cooldown — or accidentally restores a stale timestamp.
 const COOLDOWN_FIELDS = new Set([
-  "lastDaily", "lastWeekly", "lastMonthly",
+  "lastDaily",
   "lastWork", "lastJobChange",
   "lastRest",
   "lastCrime", "lastRob",
