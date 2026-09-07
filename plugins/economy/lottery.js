@@ -70,6 +70,22 @@ export default {
       const myCount = myEntry?.count ?? 0;
 
       if (myCount >= MAX_TICKETS) {
+        if (discord?.message) {
+          return sock.sendMessage(jid, {
+            discordEmbed: {
+              title: "🎰 Global Lottery",
+              description: "You have already entered the global lottery.",
+              color: "#F1C40F",
+              fields: [
+                { name: "🎟️ Entry", value: "Already entered", inline: true },
+                { name: "🎫 Tickets", value: String(myCount), inline: true },
+              ],
+              footer: { text: "Use .lotterylist to see the draw." },
+            },
+            mentions: [sender],
+          }, { quoted: msg });
+        }
+
         return reply(
 `╭━━━〔 🔒 𝑴𝑨𝑿 𝑻𝑰𝑪𝑲𝑬𝑻𝑺 〕━━━╮
 ┃ ✦ You already hold the maximum tickets!
