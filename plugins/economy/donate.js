@@ -7,8 +7,34 @@
 import { getUser, saveUser, requireRegistration, isRegistered, addHistory } from "./database.js";
 import { parseAmount } from "./parseAmount.js";
 import { formatWalletTransfer } from "./walletMessage.js";
+import { discordAccountKey } from "../../lib/identity.mjs";
 
-function resolveTarget(msg) {
+async function resolveDiscordTarget(discordMessage) {
+  if (!discordMessage) return null;
+
+  // Discord's native mention collection is more reliable than reconstructing
+  // mention metadata through the WhatsApp compatibility message.
+  const mentionedUser =
+    discordMessage.mentions?.users?.first?.()
+    || discordMessage.mentions?.users?.values?.().next?.().value;
+  if (mentionedUser?.id) return discordAccountKey(mentionedUser.id);
+
+  // A Discord reply stores only the referenced message ID. Fetch the
+  // referenced message so `.give <amount>` can target its author.
+  if (discordMessage.reference?.messageId && typeof discordMessage.fetchReference === "function") {
+    const referencedMessage = await discordMessage.fetchReference().catch(() => null);
+    if (referencedMessage?.author?.id) {
+      return discordAccountKey(referencedMessage.author.id);
+    }
+  }
+
+  return null;
+}
+
+async function resolveTarget(msg, discord) {
+  const discordTarget = await resolveDiscordTarget(discord?.message);
+  if (discordTarget) return discordTarget;
+
   // 1. Direct @mention
   const ctx = msg.message?.extendedTextMessage?.contextInfo
             || msg.message?.imageMessage?.contextInfo
@@ -30,14 +56,14 @@ export default {
   cooldown: 6,
   checkJail: true,
 
-  async run({ sock, msg, args, sender }) {
+  async run({ sock, msg, args, sender, discord }) {
     if (!await requireRegistration(sock, msg, sender)) return;
 
     const jid   = msg.key.remoteJid;
     const reply = (text) => sock.sendMessage(jid, { text }, { quoted: msg });
 
     // ── Resolve target (mention or reply) ──────────────────────────────────
-    let targetJid = resolveTarget(msg);
+    let targetJid = await resolveTarget(msg, discord);
 
     // Fallback: first arg that looks like a phone number
     if (!targetJid) {
