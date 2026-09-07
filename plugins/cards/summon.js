@@ -11,8 +11,8 @@
 import { findOrCreateUser } from "./db.js";
 import { getUser, saveUser, requireRegistration, addHistory } from "../economy/database.js";
 import {
-  getCardsByTier,
-  buildDiscordCardSpawnPayload,
+  buildDiscordSummonPayload,
+  fetchCardByTier,
   sendCardMedia,
   TIER_EMOJI,
   TIER_NUM,
@@ -202,9 +202,10 @@ export default {
       // Log transaction history
       await addHistory(sender, "summon", -cost, `Summoned ${tierName} card`);
 
-      // ── Fetch a card from the resolved tier ─────────────────────────────────
-      const pool = await getCardsByTier(TIER_NUM[tierName.toLowerCase()] || "1");
-      if (!pool || pool.length === 0) {
+      // ── Fetch one card from the resolved tier ───────────────────────────────
+      // A summon only needs one tier; avoid loading all seven tiers on demand.
+      const card = await fetchCardByTier(TIER_NUM[tierName.toLowerCase()] || "1");
+      if (!card) {
         // Refund if no cards available
         ecoUser.money += cost;
         await saveUser(sender, ecoUser);
@@ -223,15 +224,17 @@ export default {
         );
       }
 
-      const card = pool[Math.floor(Math.random() * pool.length)];
-
       // Enrich series from AniList (cache-first; 4 s timeout so summon stays snappy)
-      if (!card.series || card.series === "Unknown") {
-        card.series = await getSeries(card.name, { timeout: 4000 });
-      }
+      const seriesPromise = !card.series || card.series === "Unknown"
+        ? getSeries(card.name, { timeout: 1500 }).catch(() => "Unknown")
+        : Promise.resolve(card.series);
 
       // ── Hold the card until the user explicitly claims it ────────────────────
-      const cardUser = await findOrCreateUser(sender);
+      const [cardUser, enrichedSeries] = await Promise.all([
+        findOrCreateUser(sender),
+        seriesPromise,
+      ]);
+      card.series = enrichedSeries || "Unknown";
       cardUser.pendingCards = Array.isArray(cardUser.pendingCards)
         ? cardUser.pendingCards
         : [];
@@ -253,29 +256,30 @@ export default {
       cardUser.pendingCards.push(pendingCard);
       await cardUser.save();
 
-      const claimText =
-`╭━━━〔 ${emoji} 𝑺𝑼𝑴𝑴𝑶𝑵 𝑺𝑼𝑪𝑪𝑬𝑺𝑺 ✨ 〕━━━╮
-┃ ✦ A card has appeared from the ether...
-┃${isRandom ? `\n┃ 🎲 Roll  ➜ 『 \`${tierName} Tier\` 』` : ""}
-┃ 🃏 Card  ➜ 『 \`${card.name}\` 』
-┃ ${emoji} Tier  ➜ 『 \`${card.tier}\` 』
-┃ 📺 Series ➜ 『 \`${card.series}\` 』
-┃
-┣━━━━━━━━━━━━━━━━━━━━
-┃ 💸 Cost   › \`${compactMoney(cost)}\`
-┃ 👛 Wallet › \`${compactMoney(ecoUser.money)}\`
-┣━━━━━━━━━━━━━━━━━━━━
-┃ ✨ 𝗖𝗟𝗔𝗜𝗠 𝗥𝗘𝗔𝗗𝗬!
-┃ The card is waiting for you.
-┃ Use \`.claim\` to add it to your collection.
-╰━━━━━━━━━━━━━━━━━━━━╯`;
+      const claimText = [
+        "🌟 Card Summoned Successfully",
+        "",
+        "A new card has been summoned and is ready to claim.",
+        "",
+        `Use .claim ${card.cardId} to add it to your collection.`,
+        "",
+        `Card: ${card.name}`,
+        `Tier: ${emoji} ${card.tier}`,
+        `Series: ${card.series}`,
+        `Card ID: ${card.cardId}`,
+        `Summon cost: ${compactMoney(cost)}`,
+        `Wallet remaining: ${compactMoney(ecoUser.money)}`,
+      ].join("\n");
 
       if (discord?.message) {
         try {
-          const payload = await buildDiscordCardSpawnPayload(
+          const payload = await buildDiscordSummonPayload(
             pendingCard,
-            pendingCard.spawnId,
-            prefix,
+            {
+              summonCost: cost,
+              walletRemaining: ecoUser.money,
+              prefix,
+            },
           );
           const userId = discord.message.author?.id;
           if (userId) {
