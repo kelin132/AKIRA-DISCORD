@@ -1,43 +1,27 @@
 import { getUser, saveUser, requireRegistration, isRegistered, addHistory } from "./database.js";
 import { hasActiveGun } from "../../lib/economySecurity.mjs";
 import { compactMoney } from "../../lib/compactMoney.mjs";
-import { sendEconomyReply } from "../../lib/discordEconomyReply.mjs";
 
 function fmt(n) {
   return compactMoney(n);
 }
 
-function robReply({
-  sock,
-  jid,
-  msg,
-  discord,
-  text,
-  title,
-  description,
-  color,
-  discordText,
-  mentions = [],
-}) {
-  return sendEconomyReply({
-    sock,
-    jid,
-    msg,
-    discord,
-    text: text || description || title,
-    discordText: discordText || description || text || title,
-    title,
-    description,
-    color,
-    discordFields: [],
-    mentions,
-  });
+function robReply({ sock, jid, msg, discord, text, title, description, color, fields = [], mentions = [] }) {
+  if (discord) {
+    const details = fields
+      .map(({ name, value }) => `${name}: ${value}`)
+      .join(". ");
+    const simpleText = `🦹 rob: ${description || title}${details ? ` ${details}.` : ""}`;
+    return sock.sendMessage(jid, { text: simpleText, mentions }, { quoted: msg });
+  }
+  return sock.sendMessage(jid, { text, mentions }, { quoted: msg });
 }
 
 export default {
   name: "rob",
-  description: "Rob another user — 55% success rate",
+  description: "Rob another user — 55% success rate (45-min cooldown)",
   category: "economy",
+  cooldown: 6,
   usage: ".rob @user",
   checkJail: true,
 
@@ -215,12 +199,10 @@ export default {
         sock, jid, msg, discord,
         title: "🦹 Robbery Successful!",
         description: `${tag} was robbed successfully.`,
-        discordText: `🦹 You robbed ${tag} and stole ${fmt(amount)}. Wallet: ${fmt(robber.money)}.`,
         color: "#2ECC71",
         fields: [
           { name: "Target", value: tag, inline: true },
           { name: "Stolen", value: `+${fmt(amount)}`, inline: true },
-          { name: "Wallet", value: fmt(robber.money), inline: true },
         ],
         mentions,
         text:
@@ -247,11 +229,9 @@ export default {
         description: discordTargetId
           ? `<@${discord.message.author.id}> got caught trying to rob ${tag}.`
           : `${tag} got caught trying to rob the target.`,
-        discordText: `🚓 You were caught trying to rob ${tag}. Fine: -${fmt(fine)}. Wallet: ${fmt(robber.money)}.`,
         color: "#E74C3C",
         fields: [
           { name: "Fine (penalty)", value: `🪙 ${fmt(fine)}`, inline: true },
-          { name: "Wallet", value: fmt(robber.money), inline: true },
         ],
         mentions: discordTargetId
           ? [`discord:${discord.message.author.id}`, `discord:${discordTargetId}`]

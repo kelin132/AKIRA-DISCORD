@@ -39,16 +39,16 @@ export default {
   name: "beg",
   aliases: ["spare", "panhandle"],
   category: "economy",
-  description: "Beg for a small amount of money",
+  description: "Beg for a small amount of money (3-min cooldown)",
   usage: ".beg",
-  cooldown: 180,
+  cooldown: 5,
 
   async run({ sock, msg, sender, discord }) {
     if (!await requireRegistration(sock, msg, sender)) return;
 
     const jid   = msg.key.remoteJid;
-    const reply = (text, discordText = text) => sendEconomyReply({
-      sock, jid, msg, discord, text, discordText, title: "🤲 Beg", mentions: [sender],
+    const reply = (text, simpleText = null) => sendEconomyReply({
+      sock, jid, msg, discord, text, simpleText, title: "🤲 Beg",
     });
 
     const user = await getUser(sender);
@@ -68,8 +68,8 @@ export default {
 │ 🕐 *Next*    :: \`${m}m ${s}s\`
 │
 │ 😤 *You're still embarrassed from last time!*
-╰───────────────❀`,
-        `🤲 You can beg again in ${m}m ${s}s.`,
+╰───────────────❀`
+        , `⏳ Your beg cooldown is still active — ${m}m ${s}s left.`
       );
     }
 
@@ -89,8 +89,8 @@ export default {
 │ 💰 *Wallet*  :: \`${fmt(user.money)}\`
 │
 │ 😤 *Better luck next time!*
-╰───────────────❀`,
-        "🤲 You begged, but nobody gave you anything.",
+╰───────────────❀`
+        , `😔 ${flavour}`
       );
     }
 
@@ -113,8 +113,11 @@ export default {
 │ 💰 *Wallet*  :: \`${fmt(user.money)}\`${diamondReward ? `\n│ 💎 *Bonus*   :: \`+${diamondReward}\` Gem${diamondReward === 1 ? "" : "s"}` : ""}
 │
 │ 🙏 *Thank you!* Keep grinding!
-╰───────────────❀`,
-      `🤲 You begged and earned ${fmt(amount)}. Wallet: ${fmt(user.money)}.${diamondReward ? ` Gem bonus: +${diamondReward}.` : ""}`,
+╰───────────────❀`
+      , [
+        `🙏 ${pick("", amount.toLocaleString())}`,
+        ...(diamondReward ? [`💎 Bonus: +${diamondReward} Gem${diamondReward === 1 ? "" : "s"}`] : []),
+      ].join(" ")
     );
   },
 };
