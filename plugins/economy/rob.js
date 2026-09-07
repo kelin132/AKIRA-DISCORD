@@ -7,17 +7,29 @@ function fmt(n) {
   return compactMoney(n);
 }
 
-function robReply({ sock, jid, msg, discord, text, title, description, color, fields = [], mentions = [] }) {
+function robReply({
+  sock,
+  jid,
+  msg,
+  discord,
+  text,
+  title,
+  description,
+  color,
+  discordText,
+  mentions = [],
+}) {
   return sendEconomyReply({
     sock,
     jid,
     msg,
     discord,
     text: text || description || title,
+    discordText: discordText || description || text || title,
     title,
     description,
     color,
-    fields,
+    discordFields: [],
     mentions,
   });
 }
@@ -203,6 +215,7 @@ export default {
         sock, jid, msg, discord,
         title: "🦹 Robbery Successful!",
         description: `${tag} was robbed successfully.`,
+        discordText: `🦹 You robbed ${tag} and stole ${fmt(amount)}. Wallet: ${fmt(robber.money)}.`,
         color: "#2ECC71",
         fields: [
           { name: "Target", value: tag, inline: true },
@@ -234,6 +247,7 @@ export default {
         description: discordTargetId
           ? `<@${discord.message.author.id}> got caught trying to rob ${tag}.`
           : `${tag} got caught trying to rob the target.`,
+        discordText: `🚓 You were caught trying to rob ${tag}. Fine: -${fmt(fine)}. Wallet: ${fmt(robber.money)}.`,
         color: "#E74C3C",
         fields: [
           { name: "Fine (penalty)", value: `🪙 ${fmt(fine)}`, inline: true },

@@ -15,6 +15,18 @@ function formatTime(ts) {
   return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
 }
 
+function formatElapsed(ms) {
+  const seconds = Math.max(0, Math.floor(ms / 1000));
+  if (seconds < 60) return `${seconds} second${seconds === 1 ? "" : "s"}`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return remainingMinutes
+    ? `${hours}h ${remainingMinutes}m`
+    : `${hours} hour${hours === 1 ? "" : "s"}`;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default {
@@ -25,13 +37,38 @@ export default {
   description: "Go AFK — bot will notify others when they tag you.",
   usage: ".afk [reason]",
 
-  async run({ sock, msg, sender, text: rawText }) {
+  async run({ sock, msg, sender, text: rawText, discord }) {
     const jid   = msg.key.remoteJid;
-    const reply = (t) => sock.sendMessage(jid, { text: t }, { quoted: msg });
+    const discordMessage = discord?.message;
+    const discordId = discordMessage?.author?.id || "";
+    const avatarUrl = discordMessage?.author?.displayAvatarURL?.({
+      extension: "png",
+      size: 128,
+      forceStatic: true,
+    });
     const user  = await getUser(sender);
     const reason = (rawText || "").trim() || "No reason given";
     const tag    = sender.split("@")[0].split(":")[0];
-    const name   = user.name || tag;
+    const name =
+      discordMessage?.member?.displayName ||
+      discordMessage?.author?.globalName ||
+      discordMessage?.author?.username ||
+      user.name ||
+      tag;
+    const displayName = name;
+    const discordMention = discordId ? `@${discordId}` : displayName;
+    const mentions = discordId ? [`discord:${discordId}`] : [sender];
+    const reply = (t, options = {}) => discordMessage
+      ? sock.sendMessage(jid, {
+          discordEmbed: {
+            title: "💤 AFK",
+            description: options.discordText || t,
+            color: "#A970FF",
+            ...(avatarUrl ? { thumbnail: avatarUrl } : {}),
+          },
+          mentions,
+        }, { quoted: msg })
+      : sock.sendMessage(jid, { text: t, ...options }, { quoted: msg });
 
     const existingAfk = user.afk?.active
       ? {
@@ -60,7 +97,9 @@ export default {
 │ 📝 𝗥𝗲𝗮𝘀𝗼𝗻: ${reason}
 │ ⏰ 𝗥𝗲𝘀𝗲𝘁: \`\`${formatTime(since)}\`\`
 ╰━━━━━━━━━━━━━━━━━━━━━━╯`,
-        { mentions: [sender] }
+        {
+          discordText: `${discordMention} is still AFK\nReason : ${reason}\nSince : ${formatElapsed(Date.now() - since)}`,
+        },
       );
     }
 
@@ -83,7 +122,9 @@ export default {
 │ 📝 𝗥𝗲𝗮𝘀𝗼𝗻: ${reason}
 │ 🕐 𝗦𝗶𝗻𝗰𝗲: \`\`${formatTime(since)}\`\`
 ╰━━━━━━━━━━━━━━━━━━━━━━╯`,
-      { mentions: [sender] }
+      {
+        discordText: `${discordMention} has gone AFK\nReason : ${reason}\nSince : 0 seconds`,
+      },
     );
   },
 };

@@ -46,8 +46,8 @@ export default {
     if (!await requireRegistration(sock, msg, sender)) return;
 
     const jid   = msg.key.remoteJid;
-    const reply = (text) => sendEconomyReply({
-      sock, jid, msg, discord, text, title: "🤲 Beg", mentions: [sender],
+    const reply = (text, discordText = text) => sendEconomyReply({
+      sock, jid, msg, discord, text, discordText, title: "🤲 Beg", mentions: [sender],
     });
 
     const user = await getUser(sender);
@@ -67,7 +67,8 @@ export default {
 │ 🕐 *Next*    :: \`${m}m ${s}s\`
 │
 │ 😤 *You're still embarrassed from last time!*
-╰───────────────❀`
+╰───────────────❀`,
+        `🤲 You can beg again in ${m}m ${s}s.`,
       );
     }
 
@@ -87,7 +88,8 @@ export default {
 │ 💰 *Wallet*  :: \`${fmt(user.money)}\`
 │
 │ 😤 *Better luck next time!*
-╰───────────────❀`
+╰───────────────❀`,
+        "🤲 You begged, but nobody gave you anything.",
       );
     }
 
@@ -110,7 +112,8 @@ export default {
 │ 💰 *Wallet*  :: \`${fmt(user.money)}\`${diamondReward ? `\n│ 💎 *Bonus*   :: \`+${diamondReward}\` Gem${diamondReward === 1 ? "" : "s"}` : ""}
 │
 │ 🙏 *Thank you!* Keep grinding!
-╰───────────────❀`
+╰───────────────❀`,
+      `🤲 You begged and earned ${fmt(amount)}. Wallet: ${fmt(user.money)}.${diamondReward ? ` Gem bonus: +${diamondReward}.` : ""}`,
     );
   },
 };

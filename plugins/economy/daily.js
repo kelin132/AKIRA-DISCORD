@@ -1,4 +1,6 @@
 import { getUser, saveUser, requireRegistration, checkLevelUp } from "./database.js";
+import { sendEconomyReply } from "../../lib/discordEconomyReply.mjs";
+import { ECONOMY_THUMBNAILS } from "../../lib/economyEmbed.mjs";
 
 function fmt(n) {
   if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
@@ -11,7 +13,6 @@ export default {
   name: "daily",
   description: "Claim your daily reward",
   category: "economy",
-  discordPlainText: true,
   usage: ".daily",
   aliases: ["dailyclaim"],
 
@@ -28,9 +29,17 @@ export default {
       const hours     = Math.floor(remaining / (60 * 60 * 1000));
       const minutes   = Math.floor((remaining % (60 * 60 * 1000)) / (60 * 1000));
 
-      return sock.sendMessage(jid, {
+      return sendEconomyReply({
+        sock,
+        jid,
+        msg,
+        sender,
+        title: "🎁 Daily Reward",
+        color: "#F1C40F",
+        thumbnail: ECONOMY_THUMBNAILS.daily,
         text: `You already claimed your daily reward.\nNext claim: ${hours}h ${minutes}m.`,
-      }, { quoted: msg });
+        discordText: `🎁 You already claimed your daily reward. Try again in ${hours}h ${minutes}m.`,
+      });
     }
 
     const reward   = 50000 + Math.floor(Math.random() * 50000);
@@ -48,6 +57,16 @@ export default {
 Streak bonus: +${xpBonus} XP.
 Wallet: ${fmt(user.money)} coins.${leveled ? `\nLevel up: ${newLevel}.` : ""}`;
 
-    await sock.sendMessage(jid, { text: caption }, { quoted: msg });
+    await sendEconomyReply({
+      sock,
+      jid,
+      msg,
+      sender,
+      title: "🎁 Daily Reward",
+      color: "#F1C40F",
+      thumbnail: ECONOMY_THUMBNAILS.daily,
+      text: caption,
+      discordText: `🎁 You claimed your daily reward of ${fmt(reward)} coins. +${xpBonus} XP. Wallet: ${fmt(user.money)}${leveled ? ` Level up: ${newLevel}.` : ""}`,
+    });
   },
 };
