@@ -22,7 +22,7 @@ export function formatAccountBalance({
   extraRows = [],
 }) {
   const rows = [
-    row("💰", "Wallet ", money(wallet)),
+    row("🪙", "Wallet ", money(wallet)),
     row("🏦", "Bank   ", money(bank)),
     row("💎", "Gems   ", number(gems)),
   ];

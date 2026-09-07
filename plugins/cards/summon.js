@@ -12,7 +12,7 @@ import { findOrCreateUser } from "./db.js";
 import { getUser, saveUser, requireRegistration, addHistory } from "../economy/database.js";
 import {
   getCardsByTier,
-  resolveMediaUrl,
+  buildDiscordCardSpawnPayload,
   sendCardMedia,
   TIER_EMOJI,
   TIER_NUM,
@@ -74,7 +74,7 @@ export default {
   usage: ".summon [tier]  — e.g. .summon  |  .summon rare  |  .summon 5  |  .summon mythical",
   cooldown: 20,
 
-  async run({ sock, msg, args, sender, discord }) {
+  async run({ sock, msg, args, sender, discord, prefix = "." }) {
     const jid   = msg.key.remoteJid;
     const reply = (text, options = {}) => sendEconomyReply({
       sock,
@@ -271,19 +271,24 @@ export default {
 ╰━━━━━━━━━━━━━━━━━━━━╯`;
 
       if (discord?.message) {
-        const mediaUrl = card.media
-          ? await resolveMediaUrl(card.media).catch(() => null)
-          : null;
-        return sock.sendMessage(jid, {
-          ...(mediaUrl ? { image: mediaUrl } : {}),
-          text: [
-            `🔮 summon: ${emoji} ${card.name} (${card.tier || tierName}) summoned.`,
-            `Cost: ${compactMoney(cost)}.`,
-            `Wallet: ${compactMoney(ecoUser.money)}.`,
-            `Use .claim ${card.cardId}.`,
-          ].join(" "),
-          mentions: [sender],
-        }, { quoted: msg });
+        try {
+          const payload = await buildDiscordCardSpawnPayload(
+            pendingCard,
+            pendingCard.spawnId,
+            prefix,
+          );
+          const userId = discord.message.author?.id;
+          if (userId) {
+            payload.content = `<@${userId}>`;
+            payload.allowedMentions = { users: [userId] };
+          }
+          return await discord.message.reply(payload);
+        } catch {
+          return sock.sendMessage(jid, {
+            text: `🔮 ${card.name} summoned. Use .claim ${card.cardId}.`,
+            mentions: [sender],
+          }, { quoted: msg });
+        }
       }
 
       if (card.media) {

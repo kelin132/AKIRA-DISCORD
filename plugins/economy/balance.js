@@ -25,11 +25,9 @@ export default {
     if (discord?.message) {
       return sock.sendMessage(jid, {
         text: [
-          "💳 bal:",
-          `Wallet: ${compactMoney(user.money || 0)}.`,
-          `Bank: ${compactMoney(user.bank || 0)}.`,
-          `Gems: ${Number(user.diamonds || 0).toLocaleString()}.`,
-          `Net worth: ${compactMoney((user.money || 0) + (user.bank || 0))}.`,
+          "💳 Balance:",
+          `🪙 Wallet: ${compactMoney(user.money || 0)}.`,
+          `🏦 Bank: ${compactMoney(user.bank || 0)}.`,
         ].join(" "),
         mentions: [sender],
       }, { quoted: msg });

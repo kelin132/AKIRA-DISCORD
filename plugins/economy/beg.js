@@ -41,6 +41,7 @@ export default {
   category: "economy",
   description: "Beg for a small amount of money",
   usage: ".beg",
+  cooldown: 180,
 
   async run({ sock, msg, sender, discord }) {
     if (!await requireRegistration(sock, msg, sender)) return;

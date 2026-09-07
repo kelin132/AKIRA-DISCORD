@@ -16,6 +16,7 @@ export default {
   category: "economy",
   description: "Go fishing for cash, items, or orbs",
   usage: ".fish",
+  cooldown: 10,
 
   async run({ sock, msg, sender, discord }) {
     if (!await requireRegistration(sock, msg, sender)) return;

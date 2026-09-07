@@ -16,6 +16,7 @@ export default {
   category: "economy",
   description: "Dig for buried treasure — cash, items, or orbs",
   usage: ".dig",
+  cooldown: 10,
 
   async run({ sock, msg, sender, discord }) {
     if (!await requireRegistration(sock, msg, sender)) return;
