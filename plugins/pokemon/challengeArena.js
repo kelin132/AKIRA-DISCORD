@@ -4,7 +4,11 @@
 import { findTrainerByUsername, getTrainer, pickLeadFromParty } from "../../lib/pokemon/players.mjs";
 import { healPartyAndGet } from "../../lib/pokemon/pokemonDb.mjs";
 import { createWebBattleRoom, webBattleUrl } from "../../lib/webBattleRoom.mjs";
-import { resolveLid } from "../../lib/permissions.mjs";
+import {
+  challengeMentionJid,
+  challengeTargetLabel,
+  resolveChallengeTargetJid,
+} from "../../lib/pokemon/challengeTarget.mjs";
 
 function normaliseLabel(value) {
   return String(value ?? "")
@@ -105,24 +109,26 @@ export default {
     let resolvedRawTargetJid = rawTargetJid;
     if (rawTargetJid?.endsWith("@lid")) {
       const groupMemberJid = await findGroupMemberByLabel(sock, jid, rawTargetJid);
-      if (groupMemberJid) {
-        resolvedRawTargetJid = groupMemberJid;
-      } else {
-        const digits = await resolveLid(rawTargetJid, sock, jid);
-        resolvedRawTargetJid = digits ? `${digits}@s.whatsapp.net` : null;
-      }
+      if (groupMemberJid) resolvedRawTargetJid = groupMemberJid;
     }
 
+    const resolvedMentionJid = await resolveChallengeTargetJid({
+      jid: resolvedRawTargetJid,
+      sock,
+      chatJid: jid,
+    });
     const typedLabel = args.join(" ");
     const typedTarget = typedLabel ? await findTrainerByUsername(typedLabel) : null;
-    const groupTarget = !resolvedRawTargetJid && !typedTarget
+    const groupTarget = !resolvedMentionJid && !typedTarget
       ? await findGroupMemberByLabel(sock, jid, typedLabel)
       : null;
     const targetJid =
-      resolvedRawTargetJid ||
+      resolvedMentionJid ||
       typedTarget?.jid ||
       groupTarget ||
-      (rawTargetJid && !rawTargetJid.endsWith("@lid") ? rawTargetJid : null);
+      null;
+    const targetMentionJid = challengeMentionJid(rawTargetJid, targetJid);
+    const targetLabel = challengeTargetLabel(targetJid, targetMentionJid);
 
     if (!targetJid) {
       return sock.sendMessage(
@@ -209,7 +215,7 @@ export default {
           "✅ *ALL POKÉMON HAVE BEEN HEALED!*\n\n" +
           "🏟️ Both trainers' battle parties have been loaded into one shared match.\n" +
           "🔗 Preparing your direct Pokémon arena link...",
-        mentions: [targetJid],
+        mentions: [targetMentionJid],
       },
       { quoted: msg },
     );
@@ -227,7 +233,7 @@ export default {
         challengerTrainer: challenger,
         challengerParty: party,
         opponentJid,
-        opponentName: opponent.username || targetJid.split("@")[0],
+        opponentName: opponent.username || targetLabel,
         opponentAvatarUrl,
         opponentTrainer: opponent,
         opponentParty,
@@ -245,14 +251,14 @@ export default {
     const roomCode = room.code || room._id.slice(-6).toUpperCase();
     const caption =
       `🌐 *POKÉMON BATTLE ARENA READY!*\n\n` +
-      `*${challenger.username || msg.pushName || sender.split("@")[0]}* challenged @${targetJid.split("@")[0]}!\n\n` +
+      `*${challenger.username || msg.pushName || sender.split("@")[0]}* challenged ${targetLabel}!\n\n` +
       `🔐 *Room code:* \`${roomCode}\`\n` +
       `Open this same link in your signed-in AIDORU accounts to enter the match directly:\n${url}\n\n` +
       `Both trainers' healed parties, lead Pokémon, moves, and items are loaded into this one shared arena. The match starts automatically when the room opens.`;
 
     return sock.sendMessage(
       jid,
-      { text: caption, mentions: [targetJid] },
+      { text: caption, mentions: [targetMentionJid] },
       { quoted: msg },
     );
   },

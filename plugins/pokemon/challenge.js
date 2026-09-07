@@ -10,6 +10,11 @@ import {
 } from "../../lib/pokemon/battleState.mjs";
 import { generateBattleScene } from "../../lib/pokemon/canvas.mjs";
 import { generateChallengeCanvas } from "../../lib/pokemon/challengeCanvas.mjs";
+import {
+  challengeMentionJid,
+  challengeTargetLabel,
+  resolveChallengeTargetJid,
+} from "../../lib/pokemon/challengeTarget.mjs";
 
 function unwrapMessage(message) {
   let current = message || {};
@@ -28,6 +33,7 @@ function unwrapMessage(message) {
 function getContextInfo(msg) {
   const message = unwrapMessage(msg.message);
   return (
+    message.contextInfo ||
     message.extendedTextMessage?.contextInfo ||
     message.imageMessage?.contextInfo ||
     message.videoMessage?.contextInfo ||
@@ -152,7 +158,14 @@ export default {
         ? msg.quoted?.key?.remoteJid
         : null);
 
-    const targetJid = mentionedJid || quotedSender || null;
+    const rawTargetJid = mentionedJid || quotedSender || null;
+    const targetJid = await resolveChallengeTargetJid({
+      jid: rawTargetJid,
+      sock,
+      chatJid: jid,
+    });
+    const targetMentionJid = challengeMentionJid(rawTargetJid, targetJid);
+    const targetLabel = challengeTargetLabel(targetJid, targetMentionJid);
 
     if (!targetJid) {
       return sock.sendMessage(jid, {
@@ -190,7 +203,7 @@ export default {
 
     const [challengerAvatarUrl, opponentAvatarUrl] = await Promise.all([
       sock.profilePictureUrl(sender, "image").catch(() => null),
-      sock.profilePictureUrl(targetJid, "image").catch(() => null),
+      sock.profilePictureUrl(targetMentionJid, "image").catch(() => null),
     ]);
 
     let challengeImage;
@@ -201,7 +214,7 @@ export default {
           avatarUrl: challengerAvatarUrl,
         },
         opponent: {
-          name: `@${targetJid.split("@")[0]}`,
+          name: targetLabel,
           avatarUrl: opponentAvatarUrl,
         },
       });
@@ -211,7 +224,7 @@ export default {
 
     const caption =
       `⚔️ *BATTLE CHALLENGE!*\n\n` +
-      `*${challenger.username}* challenges @${targetJid.split("@")[0]} to a Pokémon battle!\n\n` +
+      `*${challenger.username}* challenges ${targetLabel} to a Pokémon battle!\n\n` +
       `🐉 Their lead: *${lead.displayName}* Lv.${lead.level}\n\n` +
       `Type *.ch accept* to accept within 2 minutes!`;
 
@@ -219,12 +232,12 @@ export default {
       await sock.sendMessage(jid, {
         image: challengeImage,
         caption,
-        mentions: [targetJid],
+        mentions: [targetMentionJid],
       }, { quoted: msg });
     } else {
       await sock.sendMessage(jid, {
         text: caption,
-        mentions: [targetJid],
+        mentions: [targetMentionJid],
       }, { quoted: msg });
     }
   },
