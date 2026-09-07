@@ -184,10 +184,16 @@ export default {
           enqueue,
         });
       } catch (voiceError) {
-        console.error("[play2] voice playback failed:", voiceError.message);
+        const voiceMessage = String(voiceError?.message || voiceError || "");
+        console.error("[play2] voice playback failed:", voiceMessage);
+        const reason = /opus module|opusscript|node-opus|@discordjs\/opus/i.test(voiceMessage)
+          ? "The Discord Opus audio codec is unavailable."
+          : /ffmpeg|spawn/i.test(voiceMessage)
+            ? "FFmpeg could not start."
+            : "The Discord voice session could not start.";
         return sock.sendMessage(jid, {
-          text: "❌ I downloaded the audio, but could not start voice playback. " +
-            "Make sure I have Connect and Speak permissions and that FFmpeg is installed.",
+          text: `❌ I downloaded the audio, but could not start voice playback. ${reason} ` +
+            "Please check the bot's Connect and Speak permissions and try again.",
         }, { quoted: msg });
       }
 
