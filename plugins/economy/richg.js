@@ -1,5 +1,7 @@
-import { getUser } from "./database.js";
+import { getDb } from "../../lib/mongo.mjs";
+import { normalizeJid } from "../../lib/identity.mjs";
 import { formatAnimeLeaderboard } from "../../lib/animeLeaderboard.mjs";
+import { getCachedLeaderboard } from "../../lib/leaderboardCache.mjs";
 
 export default {
   name: "richg",
@@ -18,25 +20,45 @@ export default {
     }
 
     try {
-      const meta    = await sock.groupMetadata(jid);
-      const members = meta.participants.map(p => p.id);
+      const snapshot = await getCachedLeaderboard(`richg:${jid}`, async () => {
+        const meta = await sock.groupMetadata(jid);
+        const members = [...new Set(
+          meta.participants
+            .map((participant) => normalizeJid(participant.id))
+            .filter(Boolean),
+        )];
+        const db = await getDb();
+        const users = await db.collection("users").aggregate([
+          { $match: { _id: { $in: members }, registered: true } },
+          {
+            $project: {
+              _id: 1,
+              name: 1,
+              net: {
+                $add: [
+                  { $convert: { input: { $ifNull: ["$money", 0] }, to: "double", onError: 0, onNull: 0 } },
+                  { $convert: { input: { $ifNull: ["$bank", 0] }, to: "double", onError: 0, onNull: 0 } },
+                ],
+              },
+            },
+          },
+          { $sort: { net: -1, _id: 1 } },
+          { $limit: 10 },
+        ]).toArray();
 
-      const results = await Promise.allSettled(members.map(m => getUser(m)));
+        return { subject: meta.subject, users };
+      }, { ttlMs: 30_000 });
 
-      const users = results
-        .filter(r => r.status === "fulfilled" && r.value?.registered)
-        .map((r, i) => ({ ...r.value, jid: members[i] }))
-        .map(u => ({ ...u, net: (u.money || 0) + (u.bank || 0) }))
-        .sort((a, b) => b.net - a.net)
-        .slice(0, 10);
-
-      if (!users.length) {
+      if (!snapshot.users.length) {
         return reply("❌ No registered users in this group yet.\n\nUse *.register <name>* to join!");
       }
 
       const text = formatAnimeLeaderboard({
-        subtitle: `GROUP WEALTH · ${meta.subject}`,
-        rows: users.map((u) => ({ name: u.name || `User_${u.jid?.split("@")[0]?.slice(-4) || "???"}`, value: u.net })),
+        subtitle: `GROUP WEALTH · ${snapshot.subject}`,
+        rows: snapshot.users.map((u) => ({
+          name: u.name || `User_${String(u._id || "").split("@")[0].slice(-4) || "???"}`,
+          value: u.net,
+        })),
         valueIcon: "💰",
         valueLabel: "𝐖𝐄𝐀𝐋𝐓𝐇",
         footer: "🌸 𝐆𝐑𝐎𝐔𝐏 𝐋𝐄𝐆𝐄𝐍𝐃𝐒",

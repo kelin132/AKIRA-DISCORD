@@ -58,7 +58,7 @@ async function refreshWealthText(db) {
       const [cardDocs, pokemonDocs, companyDocs] = await Promise.all([
         db.collection("mn_users").find({
           $or: [{ whatsappNumber: { $in: userJids } }, { userId: { $in: userJids } }],
-        }, { projection: { userId: 1, whatsappNumber: 1, cards: 1 } }).toArray(),
+        }, { projection: { userId: 1, whatsappNumber: 1, totalCards: 1, cards: 1 } }).toArray(),
         db.collection("pokemon_owned").aggregate([
           { $match: { ownerJid: { $in: userJids } } },
           { $group: { _id: "$ownerJid", total: { $sum: 1 } } },
@@ -69,7 +69,9 @@ async function refreshWealthText(db) {
       ]);
       const cardCounts = new Map();
       for (const doc of cardDocs) {
-        const count = Array.isArray(doc.cards) ? doc.cards.length : 0;
+        const count = Number.isFinite(Number(doc.totalCards))
+          ? Number(doc.totalCards)
+          : (Array.isArray(doc.cards) ? doc.cards.length : 0);
         for (const key of [doc.whatsappNumber, doc.userId].filter(Boolean)) {
           const normalized = String(key);
           cardCounts.set(normalized, Math.max(cardCounts.get(normalized) || 0, count));
@@ -212,13 +214,24 @@ export default {
     // ── TOP CARDS ──────────────────────────────────────────────────────────────
     if (flag === "cards" || flag === "card") {
       const text = await getCachedCategory("cards", async () => {
-        // mn_users stores cards as an array; aggregate by size
-        const results = await db.collection("mn_users").aggregate([
-          { $match: { cards: { $exists: true, $type: "array", $ne: [] } } },
-          { $project: { userId: 1, whatsappNumber: 1, username: 1, cardCount: { $size: "$cards" } } },
-          { $sort: { cardCount: -1, userId: 1 } },
-          { $limit: 10 },
-        ]).toArray();
+        // New card users maintain totalCards, avoiding a full array-size
+        // calculation for the common leaderboard query.
+        let results = await db.collection("mn_users").find(
+          { totalCards: { $gt: 0 } },
+          { projection: { userId: 1, whatsappNumber: 1, username: 1, totalCards: 1 } },
+        ).sort({ totalCards: -1, userId: 1 }).limit(10).toArray();
+
+        // Legacy users may only have the cards array populated.
+        if (!results.length) {
+          results = await db.collection("mn_users").aggregate([
+            { $match: { cards: { $exists: true, $type: "array", $ne: [] } } },
+            { $project: { userId: 1, whatsappNumber: 1, username: 1, cardCount: { $size: "$cards" } } },
+            { $sort: { cardCount: -1, userId: 1 } },
+            { $limit: 10 },
+          ]).toArray();
+        } else {
+          results = results.map((result) => ({ ...result, cardCount: result.totalCards }));
+        }
 
         if (!results.length) {
           return "🃏 No cards collected yet!\nUse the card game commands to start collecting.";
