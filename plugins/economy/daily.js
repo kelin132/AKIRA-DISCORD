@@ -2,8 +2,6 @@ import { getUser, saveUser, requireRegistration, checkLevelUp } from "./database
 import { sendEconomyReply } from "../../lib/discordEconomyReply.mjs";
 import { ECONOMY_THUMBNAILS } from "../../lib/economyEmbed.mjs";
 
-const WEBSITE_DAILY_URL = "https://aidoru.zone.id/daily";
-
 function fmt(n) {
   if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
   if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
@@ -39,8 +37,8 @@ export default {
         title: "🎁 Daily Reward",
         color: "#F1C40F",
         thumbnail: ECONOMY_THUMBNAILS.daily,
-        text: `You already claimed your daily reward.\nNext claim: ${hours}h ${minutes}m.\n\nYou can collect more daily reward here: ${WEBSITE_DAILY_URL}`,
-        discordText: `🎁 You already claimed your daily reward. Try again in ${hours}h ${minutes}m.\n\nYou can collect more daily reward here: ${WEBSITE_DAILY_URL}`,
+        text: `You already claimed your daily reward.\nNext claim: ${hours}h ${minutes}m.\n\nYou can collect more daily reward here.`,
+        discordText: `🎁 You already claimed your daily reward. Try again in ${hours}h ${minutes}m.\n\nYou can collect more daily reward here.`,
       });
     }
 
@@ -59,7 +57,7 @@ export default {
 Streak bonus: +${xpBonus} XP.
 Wallet: ${fmt(user.money)} coins.${leveled ? `\nLevel up: ${newLevel}.` : ""}
 
-You can collect more daily reward here: ${WEBSITE_DAILY_URL}`;
+You can collect more daily reward here.`;
 
     await sendEconomyReply({
       sock,
@@ -70,7 +68,7 @@ You can collect more daily reward here: ${WEBSITE_DAILY_URL}`;
       color: "#F1C40F",
       thumbnail: ECONOMY_THUMBNAILS.daily,
       text: caption,
-      discordText: `🎁 You claimed your daily reward of ${fmt(reward)} coins. +${xpBonus} XP. Wallet: ${fmt(user.money)}${leveled ? ` Level up: ${newLevel}.` : ""}\n\nYou can collect more daily reward here: ${WEBSITE_DAILY_URL}`,
+      discordText: `🎁 You claimed your daily reward of ${fmt(reward)} coins. +${xpBonus} XP. Wallet: ${fmt(user.money)}${leveled ? ` Level up: ${newLevel}.` : ""}\n\nYou can collect more daily reward here.`,
     });
   },
 };
