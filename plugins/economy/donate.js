@@ -8,6 +8,7 @@ import { getUser, saveUser, requireRegistration, isRegistered, addHistory } from
 import { parseAmount } from "./parseAmount.js";
 import { formatWalletTransfer } from "./walletMessage.js";
 import { discordAccountKey } from "../../lib/identity.mjs";
+import { resolveDiscordAccount } from "../../lib/accountLink.mjs";
 
 async function resolveDiscordTarget(discordMessage) {
   if (!discordMessage) return null;
@@ -17,14 +18,18 @@ async function resolveDiscordTarget(discordMessage) {
   const mentionedUser =
     discordMessage.mentions?.users?.first?.()
     || discordMessage.mentions?.users?.values?.().next?.().value;
-  if (mentionedUser?.id) return discordAccountKey(mentionedUser.id);
+  if (mentionedUser?.id) {
+    return await resolveDiscordAccount(mentionedUser.id).catch(() => null)
+      || discordAccountKey(mentionedUser.id);
+  }
 
   // A Discord reply stores only the referenced message ID. Fetch the
   // referenced message so `.give <amount>` can target its author.
   if (discordMessage.reference?.messageId && typeof discordMessage.fetchReference === "function") {
     const referencedMessage = await discordMessage.fetchReference().catch(() => null);
     if (referencedMessage?.author?.id) {
-      return discordAccountKey(referencedMessage.author.id);
+      return await resolveDiscordAccount(referencedMessage.author.id).catch(() => null)
+        || discordAccountKey(referencedMessage.author.id);
     }
   }
 
@@ -32,18 +37,20 @@ async function resolveDiscordTarget(discordMessage) {
 }
 
 async function resolveTarget(msg, discord) {
-  const discordTarget = await resolveDiscordTarget(discord?.message);
-  if (discordTarget) return discordTarget;
-
-  // 1. Direct @mention
+  // The shared adapter normalizes both direct mentions and replies, including
+  // linked Discord/WhatsApp identities.
   const ctx = msg.message?.extendedTextMessage?.contextInfo
             || msg.message?.imageMessage?.contextInfo
             || msg.message?.videoMessage?.contextInfo
             || {};
   if (ctx?.mentionedJid?.[0]) return ctx.mentionedJid[0];
-  // 2. Reply to a message (quoted participant)
   if (ctx?.participant)         return ctx.participant;
   if (ctx?.quotedParticipant)   return ctx.quotedParticipant;
+
+  // Keep a native Discord fallback for messages whose compatibility metadata
+  // could not be hydrated.
+  const discordTarget = await resolveDiscordTarget(discord?.message);
+  if (discordTarget) return discordTarget;
   return null;
 }
 

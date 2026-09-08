@@ -94,6 +94,11 @@ channel where the command is used. `.card` and Pokémon spawn messages send thei
 images/GIFs as native Discord attachments. `.p` keeps the same generated profile
 card style as WhatsApp and uses the Discord member avatar.
 
+Moderators and server administrators can create persistent reaction giveaways
+with `.gws <duration> <prize>`, for example `.gws 2h Nitro Basic`. Members react
+with 🎉 to enter; the bot selects and mentions a winner automatically when the
+timer ends. Active giveaways and their entries survive bot restarts.
+
 Economy text replies are rendered as native Discord cards with a colored left
 rail. Leaderboards and blackjack use a gold rail, while registration uses green.
 The cached card leaderboard is available as `.cardlb` or `.ckb`; `.lb` also

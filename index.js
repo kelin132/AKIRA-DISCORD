@@ -17,6 +17,7 @@ const {
   handleDisboardConfirmation,
   startDiscordBumpScheduler,
 } = await import("./lib/discordBump.mjs");
+const { startDiscordGiveawayService } = await import("./lib/discordGiveaway.mjs");
 const { log } = await import("./lib/logger.mjs");
 const { closeDb, connectDb } = await import("./lib/mongo.mjs");
 const { startHealthServer } = await import("./lib/health.mjs");
@@ -50,6 +51,7 @@ async function start() {
     log("info", `Plugins loaded: ${totalPlugins} plugins, ${totalCommands} commands`);
 
     const client = await connectDiscord(DISCORD_TOKEN);
+    await startDiscordGiveawayService(client);
     startDiscordSpawners(client);
     await startDiscordBumpScheduler(client);
     client.on("messageCreate", (message) => {
