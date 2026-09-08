@@ -7,7 +7,7 @@ import {
 import { toDiscordPayload } from "../lib/discordPayload.mjs";
 
 test("daily rewards use the AIDORU destination", async () => {
-  const url = "https://aidoru.zone.id/journey";
+  const url = "https://aidoru.zone.id/daily";
   const config = getEconomyPreviewConfig("daily");
   const preview = await buildEconomyLinkPreview("daily");
 
@@ -31,7 +31,7 @@ test("reward text with a link preview becomes a clickable Discord image embed", 
   const embed = payload.embeds[0].toJSON();
 
   assert.equal(embed.title, "🎁 AIDORU Daily Rewards");
-  assert.equal(embed.url, "https://aidoru.zone.id/journey");
+  assert.equal(embed.url, "https://aidoru.zone.id/daily");
   assert.equal(embed.image.url, "attachment://aidoru-preview.jpg");
   assert.equal(payload.files[0].name, "aidoru-preview.jpg");
 });
