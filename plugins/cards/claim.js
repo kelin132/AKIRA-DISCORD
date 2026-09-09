@@ -54,7 +54,7 @@ export default {
       // Personal pending claims created by .summon or .spawnpack.
       const hasMatchingPending = cardIdInput
         ? user.pendingCards.some((card) => String(card.cardId || "").toUpperCase() === cardIdInput)
-        : user.pendingCards.length > 0;
+        : false;
       if (hasMatchingPending) {
         const selected = cardIdInput
           ? user.pendingCards.filter((card) => String(card.cardId || "").toUpperCase() === cardIdInput).slice(0, 1)
@@ -87,8 +87,18 @@ export default {
         return sock.sendMessage(jid, { text, mentions: [sender] }, { quoted: msg });
       }
 
+      // Never auto-claim a random pending card when the user omits its ID.
+      // This also prevents a card image/GIF from being sent for a bare `.claim`.
+      if (!cardIdInput) {
+        const active = activeSpawns[spawnKey];
+        return reply(
+          active
+            ? `🃏 A card is waiting to be claimed!\n\nUse \`.claim ${active.cardId}\` to claim it.`
+            : "❌ Please include the Card ID after `.claim`.\n\nExample: `.claim ABC123`",
+        );
+      }
+
       // Preserve the existing chat-wide auto-spawn claim flow.
-      if (!cardIdInput) return reply("❌ No pending summon or card spawn.\n\nUse \`.claim <card_id>\` for a chat spawn.");
       const spawn = activeSpawns[spawnKey];
       if (!spawn) return reply("❌ No active card spawn in this chat.");
       if (spawn.cardId !== cardIdInput) return reply("❌ Wrong Card ID! Try again.");

@@ -9,7 +9,7 @@ export default {
   description: "Extended balance — cash, bank, vault, orbs and net worth",
   usage: ".ebal",
 
-  async run({ sock, msg, sender }) {
+  async run({ sock, msg, sender, discord }) {
     if (!await requireRegistration(sock, msg, sender)) return;
 
     const user  = await getUser(sender);
@@ -28,6 +28,35 @@ export default {
     ];
 
     if (loan > 0) extraRows.push(`⚠️ 𝗟𝗼𝗮𝗻    ୨୧ $${loan.toLocaleString()}`);
+
+    if (discord?.message) {
+      const displayName = discord.message.member?.displayName
+        || discord.message.author?.globalName
+        || discord.message.author?.username
+        || "Your";
+      const fields = [
+        { name: "🪙 Wallet", value: `$${Number(cash).toLocaleString("en-US")}`, inline: false },
+        { name: "🏦 Bank", value: `$${Number(bank).toLocaleString("en-US")}`, inline: false },
+        { name: "💎 Gems", value: Number(diamonds).toLocaleString("en-US"), inline: false },
+        { name: "🔒 Vault", value: `$${Number(vault).toLocaleString("en-US")}`, inline: false },
+        { name: "🔮 Orbs", value: Number(orbs).toLocaleString("en-US"), inline: false },
+        { name: "🌌 Net worth", value: `$${Number(net).toLocaleString("en-US")}`, inline: false },
+        { name: "⭐ Level", value: String(user.level ?? 1), inline: true },
+        { name: "🔮 XP", value: Number(user.xp ?? 0).toLocaleString("en-US"), inline: true },
+        { name: "🎒 Items", value: String((user.inventory ?? []).length), inline: true },
+      ];
+      if (loan > 0) fields.push({ name: "⚠️ Loan", value: `$${Number(loan).toLocaleString("en-US")}`, inline: false });
+
+      return sock.sendMessage(msg.key.remoteJid, {
+        discordEmbed: {
+          title: `${displayName}'s Balance 🌸`,
+          description: "Here are your full account details:",
+          color: "#6875F5",
+          fields,
+        },
+        mentions: [sender],
+      }, { quoted: msg });
+    }
 
     await sock.sendMessage(msg.key.remoteJid, {
       text: formatAccountBalance({
