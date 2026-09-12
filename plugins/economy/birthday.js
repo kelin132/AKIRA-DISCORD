@@ -45,7 +45,7 @@ export default {
     }
 
     const birthday = parseBirthday(args.join(" "));
-    if (!birthday) return reply("❌ Use a valid date like *.birthday 18 May*.");
+    if (!birthday) return reply(" Use a valid date like *`.birthday 18 May`*.");
 
     user.birthday = birthday;
     await saveUser(sender, user);
