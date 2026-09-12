@@ -48,13 +48,8 @@ export default {
           { name: "Requirement", value: "Active gun", inline: true },
         ],
         text:
-`╭─❀「 🦹 *𝐑𝐎𝐁* 」❀─╮
-│ 📖 *Usage*   :: *.rob @user*
-│ 🎯 *Rate*    :: *55% success*
-│ 💸 *Risk*    :: *Fine if caught*
-│ 🔫 *Gun*      :: *Required from .shop weapons*
-│ ⏳ *Cooldown* :: *45 minutes*
-╰───────────────❀`
+`📖 *Usage*   :: *.rob @user*`
+
       });
     }
 
@@ -74,7 +69,7 @@ export default {
         title: "🚫 Robbery Blocked",
         description: "That player is not registered.",
         color: "#E67E22",
-        text: "❌ That player is not registered.",
+        text: "That player is not registered.",
       });
     }
 
@@ -88,12 +83,7 @@ export default {
         description: "You need an active gun before you can rob another player.",
         color: "#E67E22",
         text:
-`╭─❀「 🦹 *𝐑𝐎𝐁* 」❀─╮
-│ ❌ *Result*  :: *NO GUN 🔴*
-│
-│ 🔫 Buy a gun from *.shop weapons* before robbing.
-│ ⏳ A gun remains active for *3 days*.
-╰───────────────❀`
+`you have no gun buy one from *shop*,gun will be active for 3days.`
       });
     }
 
@@ -129,14 +119,7 @@ export default {
         description: "This player is protected by staff immunity.",
         color: "#3498DB",
         text:
-`╭─❀「 🦹 *𝐑𝐎𝐁* 」❀─╮
-│ 🌙 *Result*  :: *BLOCKED 🔴*
-│ 🍃 *Flavour* :: _この人は守られている！_
-│
-│ 🛡️ *Shield*  :: *Staff Immunity*
-│
-│ ⚠️ *This target cannot be robbed!*
-╰───────────────❀`
+`This user has staff immunity so they can't be robbed! `
       });
     }
 
@@ -149,15 +132,7 @@ export default {
         description: `The target's Rob Charm is active for another ${minsLeft} minutes.`,
         color: "#3498DB",
         text:
-`╭─❀「 🦹 *𝐑𝐎𝐁* 」❀─╮
-│ 🌙 *Result*  :: *BLOCKED 🔴*
-│ 🍃 *Flavour* :: _護符が守っている！_
-│
-│ 🧿 *Shield*  :: *Rob Charm*
-│ ⏳ *Expires* :: *${minsLeft}m remaining*
-│
-│ ⚠️ *Try again later!*
-╰───────────────❀`
+`That user has a rob charm and cannot be robbed`
       });
     }
 
@@ -168,14 +143,8 @@ export default {
         description: `The target is broke (${fmt(target.money)}).`,
         color: "#95A5A6",
         text:
-`╭─❀「 🦹 *𝐑𝐎𝐁* 」❀─╮
-│ 🌙 *Result*  :: *ABORTED 🔴*
-│ 🍃 *Flavour* :: _金がない！意味がない！_
-│
-│ 💸 *Target*  :: *Broke (${fmt(target.money)})*
-│
-│ 😂 *Not worth it! Minimum $100 needed.*
-╰───────────────❀`
+
+`that user is broke and cannot be robbed lol useless.`
       });
     }
 
@@ -206,16 +175,7 @@ export default {
         ],
         mentions,
         text:
-`╭─❀「 🦹 *𝐑𝐎𝐁* 」❀─╮
-│ 🌙 *Result*  :: *SUCCESS 🟢*
-│ 🍃 *Flavour* :: _完璧な強盗！影のように！_
-│
-│ 👤 *Target*  :: *${tag}*
-│ 💰 *Stolen*  :: *+${fmt(amount)}*
-│ 💰 *Wallet*  :: *${fmt(robber.money)}*
-│
-│ 🦹 *Clean getaway! Mission complete!* ⚔️
-╰───────────────❀`,
+`you robbed *${tag}* and got away with :: *+${fmt(amount)}*`
       });
     } else {
       const fine   = Math.floor(amount * 0.7);
@@ -237,15 +197,7 @@ export default {
           ? [`discord:${discord.message.author.id}`, `discord:${discordTargetId}`]
           : mentions,
         text:
-`╭─❀「 🦹 *𝐑𝐎𝐁* 」❀─╮
-│ 🌙 *Result*  :: *CAUGHT 🔴*
-│ 🍃 *Flavour* :: _捕まった！逃げ遅れた..._
-│
-│ 💸 *Fine*    :: *-${fmt(fine)}*
-│ 💰 *Wallet*  :: *${fmt(robber.money)}*
-│
-│ 🚔 *You got busted! Lie low for 45 min.*
-╰───────────────❀`
+`you were caught and charge a fine of *-${fmt(fine)}*`
       });
     }
   }
