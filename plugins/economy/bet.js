@@ -106,7 +106,7 @@ export default {
 `╭─❀「 🎲 *𝐁𝐄𝐓* 」❀─╮
 │ Usage: \`.bet <amount>\`
 │ Examples: \`.bet 500\`  /  \`.bet 10k\`  /  \`.bet 1b\`
-│ Maximum: \`300B ryu (💠)\`
+│ Maximum: \`300B ryu\`
 │ \`.bet all\` — bet everything in wallet
 │ \`.bet half\` — bet half your wallet
 │
@@ -116,7 +116,7 @@ export default {
         {
           fields: [
             { name: "Wallet", value: fmt(user.money), inline: true },
-            { name: "Maximum", value: "300B ryu (💠)", inline: true },
+            { name: "Maximum", value: "300B ryu", inline: true },
             { name: "Betting tiers", value: "50% ×1.7 → 9% ×10", inline: true },
           ],
         },
@@ -141,7 +141,7 @@ export default {
         fields: [{ name: "Wallet", value: fmt(user.money), inline: true }],
       });
     if (amount < 10)
-      return sendText("❌ Minimum bet is `10 ryu (💠)`.", {
+      return sendText("❌ Minimum bet is `10 ryu`.", {
         title: "❌ Bet Too Small",
         color: "#E74C3C",
       });
