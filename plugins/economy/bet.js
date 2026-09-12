@@ -4,13 +4,14 @@
  * Usage: .bet <amount|all|half>
  */
 import { getUser, saveUser, requireRegistration, addHistory, maybeAwardDiamonds, checkLevelUp } from "./database.js";
-import { randomChoice, randomChance } from "../../lib/gambling.mjs";
+import { randomChoice } from "../../lib/gambling.mjs";
 import { parseAmount } from "./parseAmount.js";
 import { MAX_BET, maxBetMessage } from "./bettingLimits.js";
 import { getNewlyUnlockedRole, buildLevelUpMsg } from "../../lib/levelRoles.mjs";
 import { formatGamblingResult } from "../../lib/gamblingFormat.mjs";
 import { flattenEconomyText, sendEconomyReply } from "../../lib/discordEconomyReply.mjs";
 import { compactMoney } from "../../lib/compactMoney.mjs";
+import { getBettingTier } from "./currency.js";
 
 const COOLDOWN = 30 * 1000;
 
@@ -37,7 +38,7 @@ function fmt(n) {
 
 export default {
   name: "bet",
-  description: "Gamble your cash — 55% fair chance",
+  description: "Gamble your cash using amount-based ryu betting tiers",
   category: "economy",
   usage: ".bet <amount | all | half>  ✦ shorthand OK: 10k / 5m / 1b",
   aliases: ["gamble2", "wager"],
@@ -105,19 +106,18 @@ export default {
 `╭─❀「 🎲 *𝐁𝐄𝐓* 」❀─╮
 │ Usage: \`.bet <amount>\`
 │ Examples: \`.bet 500\`  /  \`.bet 10k\`  /  \`.bet 1b\`
-│ Maximum: \`$300B\`
+│ Maximum: \`300B ryu (💠)\`
 │ \`.bet all\` — bet everything in wallet
 │ \`.bet half\` — bet half your wallet
 │
 │ 💰 *Wallet* :: \`${fmt(user.money)}\`
-│ 💰 *Max Bet* :: \`$300B\`
-│ 🎯 *Win Rate* :: \`53.1%\`
+│ 🎯 *Tiers* :: \`50% ×1.7 → 9% ×10\`
 ╰───────────────❀`,
         {
           fields: [
             { name: "Wallet", value: fmt(user.money), inline: true },
-            { name: "Maximum", value: "$300B", inline: true },
-            { name: "Win rate", value: "53.1%", inline: true },
+            { name: "Maximum", value: "300B ryu (💠)", inline: true },
+            { name: "Betting tiers", value: "50% ×1.7 → 9% ×10", inline: true },
           ],
         },
       );
@@ -141,31 +141,34 @@ export default {
         fields: [{ name: "Wallet", value: fmt(user.money), inline: true }],
       });
     if (amount < 10)
-      return sendText("❌ Minimum bet is `$10`.", {
+      return sendText("❌ Minimum bet is `10 ryu (💠)`.", {
         title: "❌ Bet Too Small",
         color: "#E74C3C",
       });
 
-    const won          = randomChance(0.53,1);
+    const tier         = getBettingTier(amount);
+    const won          = Math.random() < tier.winRate;
+    const payout       = Math.floor(amount * tier.multiplier);
+    const netWin       = payout - amount;
     const diamondReward = maybeAwardDiamonds(user, won ? 0.003 : 0.001, 1, 2);
     const flavour      = randomChoice(won ? WIN_LINES : LOSE_LINES);
 
     user.lastBet = now;
 
     if (won) {
-      user.money += amount;
+      user.money += netWin;
       user.xp     = (user.xp || 0) + 15;
 
       const { leveled, startLevel, newLevel } = checkLevelUp(user);
       await saveUser(sender, user);
-      await addHistory(sender, "bet", +amount, `Bet won — wagered $${amount.toLocaleString()}`);
+      await addHistory(sender, "bet", netWin, `Bet won — wagered ${amount.toLocaleString()} ryu at ×${tier.multiplier}`);
 
       const tag = user.name || sender.split("@")[0].split(":")[0];
       await sendResult({
         won: true,
         flavour,
         amount,
-        net: amount,
+        net: netWin,
         balance: user.money,
         diamondReward,
       });
@@ -177,7 +180,7 @@ export default {
     } else {
       user.money = Math.max(0, user.money - amount);
       await saveUser(sender, user);
-      await addHistory(sender, "bet", -amount, `Bet lost — wagered $${amount.toLocaleString()}`);
+      await addHistory(sender, "bet", -amount, `Bet lost — wagered ${amount.toLocaleString()} ryu`);
 
       await sendResult({
         won: false,

@@ -3,12 +3,15 @@
  * All economy / staff plugins import from here.
  */
 import { getDb } from "../../lib/mongo.mjs";
+import { BASE_BANK_LIMIT, STARTING_MONEY } from "./currency.js";
 
 export const DEFAULTS = {
   name:          "User",
-  money:         0,
+  money:         STARTING_MONEY,
   bank:          0,
-  vault:         0,
+  bankLimit:     BASE_BANK_LIMIT,
+  bankCard:      false,
+  bankUpgradeLevel: 0,
   orbs:          0,           // premium currency earned from dig/fish/events
   diamonds:      0,           // rare currency earned from lucky activities
   level:         1,
@@ -57,10 +60,45 @@ export const DEFAULTS = {
   bannedAt:      null,
 };
 
+let economyMigrationPromise;
+
+async function ensureRyuEconomyMigration(db) {
+  if (!economyMigrationPromise) {
+    economyMigrationPromise = (async () => {
+      const claim = await db.collection("economy_migrations").updateOne(
+        { _id: "ryu-economy-v1" },
+        { $setOnInsert: { createdAt: new Date(), description: "Reset economy to ryu" } },
+        { upsert: true },
+      );
+      if (claim.upsertedCount === 1) {
+        await db.collection("users").updateMany(
+          { registered: true },
+          {
+            $set: {
+              money: STARTING_MONEY,
+              bank: 0,
+              bankLimit: BASE_BANK_LIMIT,
+              bankCard: false,
+              bankUpgradeLevel: 0,
+              economyVersion: 1,
+            },
+            $unset: { vault: "", totalWealth: "" },
+          },
+        );
+      }
+    })().catch((error) => {
+      economyMigrationPromise = undefined;
+      throw error;
+    });
+  }
+  await economyMigrationPromise;
+}
+
 // ─── Core CRUD ────────────────────────────────────────────────────────────────
 
 export async function getUser(id) {
   const db   = await getDb();
+  await ensureRyuEconomyMigration(db);
   const user = await db.collection("users").findOne({ _id: id });
   if (!user) return { ...DEFAULTS };
   const { _id, ...rest } = user;
@@ -72,7 +110,6 @@ export async function getUser(id) {
   merged._snap = {
     money:    merged.money    ?? 0,
     bank:     merged.bank     ?? 0,
-    vault:    merged.vault    ?? 0,
     xp:       merged.xp       ?? 0,
     diamonds: merged.diamonds ?? 0,
     orbs:     merged.orbs     ?? 0,
@@ -87,7 +124,7 @@ const WALLET_CAP = 500_000_000_000; // 500 Billion max in wallet
 // Fields that must be updated atomically with $inc to prevent race conditions.
 // Every other field is safe to $set because it isn't modified by concurrent commands.
 const ATOMIC_FIELDS = new Set([
-  "money", "bank", "vault", "xp", "diamonds", "orbs",
+  "money", "bank", "xp", "diamonds", "orbs",
   "completedShifts", "workXp",
 ]);
 
@@ -164,12 +201,11 @@ export async function saveUser(id, data) {
     await db.collection("users").updateOne(
       {
         _id: id,
-        $or: [{ money: { $lt: 0 } }, { bank: { $lt: 0 } }, { vault: { $lt: 0 } }],
+        $or: [{ money: { $lt: 0 } }, { bank: { $lt: 0 } }],
       },
       [{ $set: {
         money: { $max: ["$money", 0] },
         bank:  { $max: ["$bank",  0] },
-        vault: { $max: ["$vault", 0] },
       }}]
     );
   } else {
@@ -624,7 +660,8 @@ export async function resetPlayer(id) {
         ...DEFAULTS,
         name, registered, registeredAt, staffLevel, isPremium, staffImmunity,
         websiteSessionRevokedAt: Date.now(),
-        money: 0, bank: 0, vault: 0, xp: 0, level: 1, inventory: [], history: [],
+        money: STARTING_MONEY, bank: 0, bankLimit: BASE_BANK_LIMIT, bankCard: false, bankUpgradeLevel: 0,
+        xp: 0, level: 1, inventory: [], history: [],
         websiteBanned: true,
         websiteBanReason: "Account reset by staff",
         websiteBannedAt: new Date(),

@@ -1,6 +1,7 @@
 import { getUser, saveUser, requireRegistration, addHistory } from "./database.js";
 import { parseAmount } from "./parseAmount.js";
 import { generateTransferImage } from "../../lib/economyCanvas.mjs";
+import { bankLimitForUser, formatRyu } from "./currency.js";
 
 export default {
   name: "deposit",
@@ -15,10 +16,16 @@ export default {
     if (!await requireRegistration(sock, msg, sender)) return;
 
     const user = await getUser(sender);
+    const bankLimit = bankLimitForUser(user);
+    if (!user.bankCard) {
+      return sock.sendMessage(msg.key.remoteJid, {
+        text: "💳 You need a bank card first. Buy one in *.shop*.",
+      }, { quoted: msg });
+    }
 
     if (!args[0]) {
       return sock.sendMessage(msg.key.remoteJid, {
-        text: `🏦 *Deposit*\n\nUsage: *.deposit <amount>* or *.deposit all*\n✦ Shorthand: 10k / 5m / 1b\n\n💰 Cash : $${user.money.toLocaleString()}\n🏦 Bank : $${user.bank.toLocaleString()}`
+        text: `🏦 *Deposit*\n\nUsage: *.deposit <amount>* or *.deposit all*\n✦ Shorthand: 10k / 5m / 1b\n\n💰 Cash : ${formatRyu(user.money)}\n🏦 Bank : ${formatRyu(user.bank)} / ${formatRyu(bankLimit)}`
       }, { quoted: msg });
     }
 
@@ -30,16 +37,22 @@ export default {
 
     if (amount > user.money) {
       return sock.sendMessage(msg.key.remoteJid, {
-        text: `❌ You only have *$${user.money.toLocaleString()}* in your wallet!`
+        text: `❌ You only have *${formatRyu(user.money)}* in your wallet!`
+      }, { quoted: msg });
+    }
+
+    if (user.bank + amount > bankLimit) {
+      return sock.sendMessage(msg.key.remoteJid, {
+        text: `❌ That deposit exceeds your bank limit of *${formatRyu(bankLimit)}*.`,
       }, { quoted: msg });
     }
 
     user.money -= amount;
     user.bank  += amount;
     await saveUser(sender, user);
-    await addHistory(sender, "deposit", -amount, `Deposited $${amount.toLocaleString()} to bank`);
+    await addHistory(sender, "deposit", -amount, `Deposited ${formatRyu(amount)} to bank`);
 
-    const text = `🏦 *Deposit Successful!*\n\n💸 Deposited : $${amount.toLocaleString()}\n💰 Cash      : $${user.money.toLocaleString()}\n🏦 Bank      : $${user.bank.toLocaleString()}`;
+    const text = `🏦 *Deposit Successful!*\n\n💸 Deposited : ${formatRyu(amount)}\n💰 Cash      : ${formatRyu(user.money)}\n🏦 Bank      : ${formatRyu(user.bank)} / ${formatRyu(bankLimit)}`;
     if (discord?.message) {
       const image = await generateTransferImage({
         direction: "deposit",
@@ -52,12 +65,12 @@ export default {
         fileName: "deposit.png",
         discordEmbed: {
           title: "🏦 Deposit Successful",
-          description: `You deposited **$${amount.toLocaleString()}** into your bank.`,
+           description: `You deposited **${formatRyu(amount)}** into your bank.`,
           color: "#45D483",
           image: "attachment",
           fields: [
-            { name: "💰 Wallet", value: `$${user.money.toLocaleString()}`, inline: true },
-            { name: "🏦 Bank", value: `$${user.bank.toLocaleString()}`, inline: true },
+            { name: "💰 Wallet", value: formatRyu(user.money), inline: true },
+            { name: "🏦 Bank", value: `${formatRyu(user.bank)} / ${formatRyu(bankLimit)}`, inline: true },
           ],
         },
       }, { quoted: msg });

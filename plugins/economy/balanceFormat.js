@@ -1,4 +1,5 @@
 import { compactMoney } from "../../lib/compactMoney.mjs";
+import { bankLimitForUser } from "./currency.js";
 
 function money(value) {
   return compactMoney(value);
@@ -16,19 +17,20 @@ export function formatAccountBalance({
   wallet = 0,
   bank = 0,
   gems = 0,
-  vault,
   orbs,
+  bankLimit,
+  bankCard = false,
   netWorth = Number(wallet ?? 0) + Number(bank ?? 0),
   extraRows = [],
 }) {
   const rows = [
     row("🪙", "Wallet ", money(wallet)),
-    row("🏦", "Bank   ", money(bank)),
+    row("🏦", "Bank   ", `${money(bank)} / ${money(bankLimit ?? bankLimitForUser({}))}`),
     row("💎", "Gems   ", number(gems)),
   ];
 
-  if (vault !== undefined && vault !== null) rows.push(row("🔒", "Vault  ", money(vault)));
   if (orbs !== undefined && orbs !== null) rows.push(row("🔮", "Orbs   ", number(orbs)));
+  rows.push(row("💳", "Card   ", bankCard ? "Active" : "Buy in .shop"));
   
   rows.push("│");
   rows.push(row("🌌", "Worth  ", money(netWorth)));

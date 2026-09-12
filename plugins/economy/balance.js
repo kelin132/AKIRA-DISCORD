@@ -1,5 +1,6 @@
 import { getUser, requireRegistration } from "./database.js";
 import { formatAccountBalance } from "./balanceFormat.js";
+import { bankLimitForUser, formatRyu } from "./currency.js";
 
 export default {
   name: "balance",
@@ -18,7 +19,9 @@ export default {
       wallet: user.money,
       bank: user.bank,
       gems: user.diamonds,
-      footerLines: ["Use .ebal", "for account breakdown"],
+      bankLimit: bankLimitForUser(user),
+      bankCard: user.bankCard,
+      footerLines: ["Buy a bank card in .shop before using deposits or withdrawals."],
     });
 
     if (discord?.message) {
@@ -34,12 +37,12 @@ export default {
           fields: [
             {
               name: "🪙 Wallet",
-              value: `$${Number(user.money || 0).toLocaleString("en-US")}`,
+               value: formatRyu(user.money),
               inline: false,
             },
             {
               name: "🏦 Bank",
-              value: `$${Number(user.bank || 0).toLocaleString("en-US")}`,
+               value: `${formatRyu(user.bank)} / ${formatRyu(bankLimitForUser(user))}`,
               inline: false,
             },
           ],

@@ -20,8 +20,8 @@ function discordRegistrationEmbed({ name, alreadyRegistered = false }) {
       ...(alreadyRegistered
         ? []
         : [
-            { name: "Wallet", value: "$100,000", inline: true },
-            { name: "Bank", value: "$0", inline: true },
+            { name: "Wallet", value: "30,000 ryu (💠)", inline: true },
+            { name: "Bank", value: "0 ryu (💠)", inline: true },
             { name: "Diamonds", value: "0", inline: true },
             { name: "Level", value: "1", inline: true },
           ]),
@@ -141,7 +141,7 @@ export default {
     }
     const welcomeText =
       `🎉 *Welcome to AKIRA Economy, ${name}!*\n\n✅ Account created successfully!\n\n` +
-      "💰 Starting Balance : $100,000\n🏦 Bank Balance     : $0\n💎 Diamonds        : 0\n⭐ Level            : 1\n\n" +
+        "💰 Starting Balance : 30,000 ryu (💠)\n🏦 Bank Balance     : 0 ryu (💠)\n💎 Diamonds        : 0\n⭐ Level            : 1\n\n" +
       "📋 *Get started:*\n• *.daily* — Claim daily reward\n• *.work* — Earn money working\n• *.balance* — Check your wallet\n• *.shop* — Buy items\n• *.guildhelp* — Join a guild\n\n" +
       "🔗 *Already have an account on WhatsApp?*\nGo to a WhatsApp group and type *.discord* to get your existing data. Then send *.connect CODE* here.\n\n" +
       "Good luck! 🍀\n\nMake sure to create an account on the website https://aidoru.zone.id";
