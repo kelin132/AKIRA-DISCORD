@@ -49,6 +49,6 @@ export default {
 
     user.birthday = birthday;
     await saveUser(sender, user);
-    return reply(`✅ Birthday set to *${birthday}*!`);
+    return reply(`Birthday set to *${birthday}*!`);
   },
 };
