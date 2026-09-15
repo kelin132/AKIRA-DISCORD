@@ -1,32 +1,33 @@
-// Run this before importing any bot module. Some plugins have native or
-// optional dependencies, and direct `node index.js` panel commands otherwise
-// fail before npm start has a chance to install an updated dependency tree.
-await import("./scripts/auto-update.mjs");
-await import("dotenv/config");
+// Run this before importing any bot module.
+import "./scripts/auto-update.mjs";
+import "dotenv/config";
 
-const { connectDiscord } = await import("./lib/discord.mjs");
-const { loadPlugins, routeDiscordMessage, routeDiscordInteraction } = await import("./lib/pluginManager.mjs");
-const { initGroupSettings } = await import("./lib/groupSettings.js");
-const {
+import { connectDiscord } from "./lib/discord.mjs";
+import { loadPlugins, routeDiscordMessage, routeDiscordInteraction } from "./lib/pluginManager.mjs";
+import { initGroupSettings } from "./lib/groupSettings.js";
+import {
   handleDiscordAntiLink,
   handleDiscordMemberJoin,
   handleDiscordMemberLeave,
-} = await import("./lib/discordGroupEvents.mjs");
-const { startDiscordSpawners } = await import("./lib/discordSpawners.mjs");
-const {
+} from "./lib/discordGroupEvents.mjs";
+import { startDiscordSpawners } from "./lib/discordSpawners.mjs";
+import {
   handleDisboardConfirmation,
   startDiscordBumpScheduler,
-} = await import("./lib/discordBump.mjs");
-const { startDiscordGiveawayService } = await import("./lib/discordGiveaway.mjs");
-const { log } = await import("./lib/logger.mjs");
-const { closeDb, connectDb } = await import("./lib/mongo.mjs");
-const { startHealthServer } = await import("./lib/health.mjs");
+} from "./lib/discordBump.mjs";
+import { startDiscordGiveawayService } from "./lib/discordGiveaway.mjs";
+import { log } from "./lib/logger.mjs";
+import { closeDb, connectDb } from "./lib/mongo.mjs";
+import { startHealthServer } from "./lib/health.mjs";
 
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const PREFIX = process.env.PREFIX || ".";
 const OWNER_ID = process.env.DISCORD_OWNER_ID || "";
 
-// Catch unhandled errors globally to prevent the host process from terminating
+// Keep the Node.js event loop active so host panels like Katabump don't see an early exit (Code 0)
+const processKeepAlive = setInterval(() => {}, 2147483647);
+
+// Global safety net for unhandled errors
 process.on("uncaughtException", (error) => {
   log("error", `Uncaught Exception: ${error?.stack || error?.message || error}`);
 });
@@ -37,6 +38,7 @@ process.on("unhandledRejection", (reason) => {
 
 if (!DISCORD_TOKEN) {
   log("error", "DISCORD_TOKEN is missing. Add it to the hosting provider's secret settings.");
+  clearInterval(processKeepAlive);
   process.exit(1);
 }
 
@@ -53,7 +55,7 @@ async function start() {
 
   try {
     await connectDb();
-    log("info", "Connected to the shared Kelin-MD2 MongoDB database");
+    log("info", "Connected to the database");
     await initGroupSettings();
 
     const { totalPlugins, totalCommands } = await loadPlugins(PREFIX);
@@ -61,7 +63,7 @@ async function start() {
 
     const client = await connectDiscord(DISCORD_TOKEN);
 
-    // Safeguard background services against fatal startup throw
+    // Safeguard background services
     await startDiscordGiveawayService(client).catch((err) => log("error", `Giveaway service error: ${err.message}`));
     try { startDiscordSpawners(client); } catch (err) { log("error", `Spawners error: ${err.message}`); }
     await startDiscordBumpScheduler(client).catch((err) => log("error", `Bump scheduler error: ${err.message}`));
@@ -114,6 +116,7 @@ async function start() {
 
     const shutdown = async (signal) => {
       log("info", `${signal} received; shutting down gracefully`);
+      clearInterval(processKeepAlive);
       healthServer?.close();
       client.destroy();
       await closeDb();
@@ -124,6 +127,7 @@ async function start() {
     process.once("SIGTERM", () => shutdown("SIGTERM"));
     log("info", "AKIRA-DISCORD is now running");
   } catch (error) {
+    clearInterval(processKeepAlive);
     healthServer?.close();
     log("error", `Startup failed: ${error.stack || error.message}`);
     await closeDb().catch(() => {});
