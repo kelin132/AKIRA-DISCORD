@@ -1,104 +1,35 @@
-// Run this before importing any bot module. Some plugins have native or
-// optional dependencies, and direct `node index.js` panel commands otherwise
-// fail before npm start has a chance to install an updated dependency tree.
-await import("./scripts/auto-update.mjs");
-await import("dotenv/config");
+import { Collection } from "discord.js";
 
-const { connectDiscord } = await import("./lib/discord.mjs");
-const { loadPlugins, routeDiscordMessage, routeDiscordInteraction } = await import("./lib/pluginManager.mjs");
-const { initGroupSettings } = await import("./lib/groupSettings.js");
-const {
-  handleDiscordAntiLink,
-  handleDiscordMemberJoin,
-  handleDiscordMemberLeave,
-} = await import("./lib/discordGroupEvents.mjs");
-const { startDiscordSpawners } = await import("./lib/discordSpawners.mjs");
-const {
-  handleDisboardConfirmation,
-  startDiscordBumpScheduler,
-} = await import("./lib/discordBump.mjs");
-const { startDiscordGiveawayService } = await import("./lib/discordGiveaway.mjs");
-const { log } = await import("./lib/logger.mjs");
-const { closeDb, connectDb } = await import("./lib/mongo.mjs");
-const { startHealthServer } = await import("./lib/health.mjs");
+export const plugins = new Collection();
+export const commands = new Collection();
 
-const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
-const PREFIX = process.env.PREFIX || ".";
-const OWNER_ID = process.env.DISCORD_OWNER_ID || "";
+/**
+ * Route interaction events (Buttons, Select Menus, Slash Commands)
+ * directly to matching plugin handlers.
+ */
+export async function routeDiscordInteraction(client, interaction, prefix, ownerId) {
+  // 1. Immediately acknowledge buttons and select menus to prevent the 3-second timeout error
+  if (interaction.isButton() || interaction.isAnySelectMenu()) {
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    }
+  }
 
-if (!DISCORD_TOKEN) {
-  log("error", "DISCORD_TOKEN is missing. Add it to the hosting provider's secret settings.");
-  process.exit(1);
-}
+  // 2. Pass interaction to plugins that export an onInteraction handler
+  for (const plugin of plugins.values()) {
+    if (typeof plugin.onInteraction === "function") {
+      try {
+        await plugin.onInteraction({ interaction, client, prefix, ownerId });
+      } catch (error) {
+        console.error(`[pluginManager] Interaction error in plugin ${plugin.name || "unknown"}:`, error);
 
-async function start() {
-  console.log("\n" + "═".repeat(50));
-  console.log("  AKIRA-DISCORD — Starting");
-  console.log("═".repeat(50));
-  console.log(`  Prefix  : ${PREFIX}`);
-  console.log("═".repeat(50) + "\n");
-
-  const healthServer = process.env.DISABLE_HEALTH_SERVER === "true"
-    ? null
-    : startHealthServer({ port: process.env.PORT || 8080 });
-
-  try {
-    await connectDb();
-    log("info", "Connected to the shared Kelin-MD2 MongoDB database");
-    await initGroupSettings();
-
-    const { totalPlugins, totalCommands } = await loadPlugins(PREFIX);
-    log("info", `Plugins loaded: ${totalPlugins} plugins, ${totalCommands} commands`);
-
-    const client = await connectDiscord(DISCORD_TOKEN);
-    await startDiscordGiveawayService(client);
-    startDiscordSpawners(client);
-    await startDiscordBumpScheduler(client);
-    client.on("messageCreate", (message) => {
-      handleDisboardConfirmation(message)
-        .catch((error) => {
-          log("error", `DISBOARD confirmation handler failed: ${error.stack || error}`);
-          return false;
-        })
-        .then(() => handleDiscordAntiLink(message))
-        .then((blocked) => blocked || routeDiscordMessage(client, message, PREFIX, OWNER_ID))
-        .catch((error) => {
-        log("error", `Unhandled message error: ${error.stack || error.message}`);
-      });
-    });
-    client.on("guildMemberAdd", (member) => {
-      handleDiscordMemberJoin(member).catch((error) => {
-        log("error", `Welcome handler failed: ${error.stack || error.message}`);
-      });
-    });
-    client.on("guildMemberRemove", (member) => {
-      handleDiscordMemberLeave(member).catch((error) => {
-        log("error", `Goodbye handler failed: ${error.stack || error.message}`);
-      });
-    });
-    client.on("interactionCreate", (interaction) => {
-      routeDiscordInteraction(client, interaction, PREFIX, OWNER_ID).catch((error) => {
-        log("error", `Unhandled interaction error: ${error.stack || error.message}`);
-      });
-    });
-
-    const shutdown = async (signal) => {
-      log("info", `${signal} received; shutting down gracefully`);
-      healthServer?.close();
-      client.destroy();
-      await closeDb();
-      process.exit(0);
-    };
-
-    process.once("SIGINT", () => shutdown("SIGINT"));
-    process.once("SIGTERM", () => shutdown("SIGTERM"));
-    log("info", "AKIRA-DISCORD is now running");
-  } catch (error) {
-    healthServer?.close();
-    log("error", `Startup failed: ${error.stack || error.message}`);
-    await closeDb().catch(() => {});
-    process.exit(1);
+        const errorMessage = "❌ An error occurred while executing this interaction.";
+        if (interaction.deferred || interaction.replied) {
+          await interaction.editReply({ content: errorMessage }).catch(() => {});
+        } else {
+          await interaction.reply({ content: errorMessage, ephemeral: true }).catch(() => {});
+        }
+      }
+    }
   }
 }
-
-start();
