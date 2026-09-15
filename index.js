@@ -26,6 +26,15 @@ const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const PREFIX = process.env.PREFIX || ".";
 const OWNER_ID = process.env.DISCORD_OWNER_ID || "";
 
+// Catch unhandled errors globally to prevent the host process from terminating
+process.on("uncaughtException", (error) => {
+  log("error", `Uncaught Exception: ${error?.stack || error?.message || error}`);
+});
+
+process.on("unhandledRejection", (reason) => {
+  log("error", `Unhandled Rejection: ${reason?.stack || reason?.message || reason}`);
+});
+
 if (!DISCORD_TOKEN) {
   log("error", "DISCORD_TOKEN is missing. Add it to the hosting provider's secret settings.");
   process.exit(1);
@@ -51,35 +60,56 @@ async function start() {
     log("info", `Plugins loaded: ${totalPlugins} plugins, ${totalCommands} commands`);
 
     const client = await connectDiscord(DISCORD_TOKEN);
-    await startDiscordGiveawayService(client);
-    startDiscordSpawners(client);
-    await startDiscordBumpScheduler(client);
-    client.on("messageCreate", (message) => {
-      handleDisboardConfirmation(message)
-        .catch((error) => {
+
+    // Safeguard background services against fatal startup throw
+    await startDiscordGiveawayService(client).catch((err) => log("error", `Giveaway service error: ${err.message}`));
+    try { startDiscordSpawners(client); } catch (err) { log("error", `Spawners error: ${err.message}`); }
+    await startDiscordBumpScheduler(client).catch((err) => log("error", `Bump scheduler error: ${err.message}`));
+
+    client.on("messageCreate", async (message) => {
+      try {
+        const isDisboard = await handleDisboardConfirmation(message).catch((error) => {
           log("error", `DISBOARD confirmation handler failed: ${error.stack || error}`);
           return false;
-        })
-        .then(() => handleDiscordAntiLink(message))
-        .then((blocked) => blocked || routeDiscordMessage(client, message, PREFIX, OWNER_ID))
-        .catch((error) => {
+        });
+
+        if (isDisboard) return;
+
+        const isBlocked = await handleDiscordAntiLink(message).catch((error) => {
+          log("error", `Anti-link handler failed: ${error.stack || error}`);
+          return false;
+        });
+
+        if (!isBlocked) {
+          await routeDiscordMessage(client, message, PREFIX, OWNER_ID);
+        }
+      } catch (error) {
         log("error", `Unhandled message error: ${error.stack || error.message}`);
-      });
+      }
     });
-    client.on("guildMemberAdd", (member) => {
-      handleDiscordMemberJoin(member).catch((error) => {
+
+    client.on("guildMemberAdd", async (member) => {
+      try {
+        await handleDiscordMemberJoin(member);
+      } catch (error) {
         log("error", `Welcome handler failed: ${error.stack || error.message}`);
-      });
+      }
     });
-    client.on("guildMemberRemove", (member) => {
-      handleDiscordMemberLeave(member).catch((error) => {
+
+    client.on("guildMemberRemove", async (member) => {
+      try {
+        await handleDiscordMemberLeave(member);
+      } catch (error) {
         log("error", `Goodbye handler failed: ${error.stack || error.message}`);
-      });
+      }
     });
-    client.on("interactionCreate", (interaction) => {
-      routeDiscordInteraction(client, interaction, PREFIX, OWNER_ID).catch((error) => {
+
+    client.on("interactionCreate", async (interaction) => {
+      try {
+        await routeDiscordInteraction(client, interaction, PREFIX, OWNER_ID);
+      } catch (error) {
         log("error", `Unhandled interaction error: ${error.stack || error.message}`);
-      });
+      }
     });
 
     const shutdown = async (signal) => {
