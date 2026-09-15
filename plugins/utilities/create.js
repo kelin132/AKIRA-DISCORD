@@ -1,4 +1,11 @@
-import { ChannelType, PermissionFlagsBits } from "discord.js";
+import {
+  ChannelType,
+  PermissionFlagsBits,
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+} from "discord.js";
 import { getDb } from "../../lib/mongo.mjs";
 
 const MAX_TICKETS = 100;
@@ -115,14 +122,92 @@ function permissionOverwrites(guild, requesterId, ticketRoleId) {
   return entries;
 }
 
+async function handleTicketCreation(guild, member, client) {
+  const db = getDb();
+  const existing = await db.collection("support_tickets").findOne({
+    guildId: guild.id,
+    requesterId: member.id,
+    closedAt: { $exists: false },
+  });
+
+  if (existing) {
+    const existingChannel = await guild.channels.fetch(existing.channelId).catch(() => null);
+    if (existingChannel) {
+      scheduleTicketTimeout(client, existing);
+      return { error: `❌ You already have an open ticket: <#${existing.channelId}>` };
+    }
+    await db.collection("support_tickets").updateOne(
+      { _id: existing._id },
+      { $set: { closedAt: new Date(), closeReason: "Ticket channel no longer exists" } },
+    );
+  }
+
+  const number = availableTicketNumber(guild);
+  if (!number) {
+    return { error: "❌ All 100 support ticket slots are currently in use." };
+  }
+
+  const botMember = guild.members.me;
+  if (!botMember?.permissions?.has?.(PermissionFlagsBits.ManageChannels)
+    || !botMember.permissions.has(PermissionFlagsBits.ManageRoles)) {
+    return { error: "❌ I need Manage Channels and Manage Roles permissions to create support tickets." };
+  }
+
+  let role;
+  let channel;
+  try {
+    role = await guild.roles.create({
+      name: `ticket ${number}`,
+      reason: `Private support ticket for ${member.user.tag}`,
+    });
+    await member.roles.add(role, "Private support ticket access");
+
+    channel = await guild.channels.create({
+      name: `ticket ${number}`,
+      type: ChannelType.GuildText,
+      permissionOverwrites: permissionOverwrites(guild, member.id, role.id),
+      reason: `Support ticket opened by ${member.user.tag}`,
+    });
+  } catch (error) {
+    if (channel?.deletable) await channel.delete("Ticket setup failed").catch(() => {});
+    if (role?.deletable) await role.delete("Ticket setup failed").catch(() => {});
+    return { error: `❌ I could not create the support ticket: ${error.message}` };
+  }
+
+  const ticket = {
+    guildId: guild.id,
+    channelId: channel.id,
+    roleId: role.id,
+    number,
+    requesterId: member.id,
+    createdAt: new Date(),
+  };
+  const result = await db.collection("support_tickets").insertOne(ticket);
+  scheduleTicketTimeout(client, { ...ticket, _id: result.insertedId });
+
+  const ticketEmbed = new EmbedBuilder()
+    .setTitle(`🎫 Support Ticket #${number}`)
+    .setDescription(
+      `Welcome <@${member.id}>!\n\n` +
+      "A moderator will respond here shortly.\n" +
+      "⚠️ *This channel will automatically close if no moderator responds within 30 minutes.*",
+    )
+    .setColor("#5865F2")
+    .setTimestamp();
+
+  await channel.send({ content: `<@${member.id}>`, embeds: [ticketEmbed] });
+
+  return { success: true, channelId: channel.id };
+}
+
 export default {
   name: "create",
-  aliases: ["ticket", "support"],
+  aliases: ["ticket", "support", "ticketpanel"],
   category: "utilities",
-  description: "Create a private support ticket",
-  usage: ".create",
+  description: "Create a support ticket or send a panel with a creation button",
+  usage: ".create [panel]",
 
-  async run({ sock, msg, discord }) {
+  async run({ sock, msg, args, discord }) {
     const message = discord?.message;
     const jid = msg.key.remoteJid;
     const reply = (text) => sock.sendMessage(jid, { text }, { quoted: msg });
@@ -130,73 +215,51 @@ export default {
     if (!message?.guild) return reply("❌ Support tickets can only be opened inside a Discord server.");
     if (!message.member) return reply("❌ I could not identify your server member account.");
 
-    const guild = message.guild;
-    const db = getDb();
-    const existing = await db.collection("support_tickets").findOne({
-      guildId: guild.id,
-      requesterId: message.author.id,
-      closedAt: { $exists: false },
-    });
-    if (existing) {
-      const existingChannel = await guild.channels.fetch(existing.channelId).catch(() => null);
-      if (existingChannel) {
-        scheduleTicketTimeout(discord.client, existing);
-        return reply(`❌ You already have an open ticket: <#${existing.channelId}>`);
+    // Option to send an embedded Panel with a button (.create panel)
+    if (args[0]?.toLowerCase() === "panel") {
+      if (!isModeratorMember(message.member)) {
+        return reply("❌ Only moderators can deploy the support ticket panel.");
       }
-      await db.collection("support_tickets").updateOne(
-        { _id: existing._id },
-        { $set: { closedAt: new Date(), closeReason: "Ticket channel no longer exists" } },
+
+      const panelEmbed = new EmbedBuilder()
+        .setTitle("📩 Support & Assistance")
+        .setDescription(
+          "Click the button below to open a private support ticket.\n" +
+          "Our team will assist you as soon as possible!",
+        )
+        .setColor("#5865F2")
+        .setFooter({ text: "Private Ticket System" });
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId("create_support_ticket")
+          .setLabel("Create Ticket")
+          .setEmoji("🎫")
+          .setStyle(ButtonStyle.Primary),
       );
+
+      return message.channel.send({ embeds: [panelEmbed], components: [row] });
     }
 
-    const number = availableTicketNumber(guild);
-    if (!number) {
-      return reply("❌ All 100 support ticket slots are currently in use.");
+    // Direct command execution (.create)
+    const res = await handleTicketCreation(message.guild, message.member, discord.client);
+    if (res.error) return reply(res.error);
+    return reply(`✅ Your private support ticket is ready: <#${res.channelId}>`);
+  },
+
+  async onInteraction({ interaction, client }) {
+    if (!interaction.isButton() || interaction.customId !== "create_support_ticket") return;
+
+    await interaction.deferReply({ ephemeral: true });
+
+    const res = await handleTicketCreation(interaction.guild, interaction.member, client);
+    if (res.error) {
+      return interaction.editReply({ content: res.error });
     }
 
-    const botMember = guild.members.me;
-    if (!botMember?.permissions?.has?.(PermissionFlagsBits.ManageChannels)
-      || !botMember.permissions.has(PermissionFlagsBits.ManageRoles)) {
-      return reply("❌ I need Manage Channels and Manage Roles permissions to create support tickets.");
-    }
-
-    let role;
-    let channel;
-    try {
-      role = await guild.roles.create({
-        name: `ticket ${number}`,
-        reason: `Private support ticket for ${message.author.tag}`,
-      });
-      await message.member.roles.add(role, "Private support ticket access");
-
-      channel = await guild.channels.create({
-        name: `ticket ${number}`,
-        type: ChannelType.GuildText,
-        permissionOverwrites: permissionOverwrites(guild, message.author.id, role.id),
-        reason: `Support ticket opened by ${message.author.tag}`,
-      });
-    } catch (error) {
-      if (channel?.deletable) await channel.delete("Ticket setup failed").catch(() => {});
-      if (role?.deletable) await role.delete("Ticket setup failed").catch(() => {});
-      return reply(`❌ I could not create the support ticket: ${error.message}`);
-    }
-
-    const ticket = {
-      guildId: guild.id,
-      channelId: channel.id,
-      roleId: role.id,
-      number,
-      requesterId: message.author.id,
-      createdAt: new Date(),
-    };
-    const result = await db.collection("support_tickets").insertOne(ticket);
-    scheduleTicketTimeout(discord.client, { ...ticket, _id: result.insertedId });
-
-    await channel.send(
-      `Support ticket opened for <@${message.author.id}>.\n` +
-      "A moderator will respond here. This channel will close automatically if no moderator responds within 30 minutes.",
-    );
-    return reply(`✅ Your private support ticket is ready: <#${channel.id}>`);
+    return interaction.editReply({
+      content: `✅ Your private support ticket has been opened: <#${res.channelId}>`,
+    });
   },
 
   async onDiscordMessage({ client, message }) {
