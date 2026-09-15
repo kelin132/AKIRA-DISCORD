@@ -87,8 +87,15 @@ export default {
   async run({ sock, msg, sender, isOwner, isMod, isStaff, discord }) {
     const jid = msg.key.remoteJid;
 
-    const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
-    const target    = mentioned || sender;
+    // Check for @mention or tagged quoted message participant
+    const contextInfo = msg.message?.extendedTextMessage?.contextInfo 
+      || msg.message?.imageMessage?.contextInfo 
+      || msg.message?.videoMessage?.contextInfo;
+      
+    const mentioned  = contextInfo?.mentionedJid?.[0];
+    const quotedUser = contextInfo?.participant;
+
+    const target = mentioned || quotedUser || sender;
 
     if (target === sender && !await requireRegistration(sock, msg, sender)) return;
 
@@ -153,8 +160,7 @@ export default {
     const daysActive = user.registeredAt
       ? Math.max(0, Math.floor((Date.now() - new Date(user.registeredAt).getTime()) / 86400000))
       : 0;
-    // Reach is supported as a stored value when another system provides it.
-    // Existing accounts get a useful, stable fallback based on active days.
+
     const reach = Number.isFinite(Number(user.reach)) ? Number(user.reach) : daysActive;
     const displayName = registeredName;
     const profileAge = user.age === null || user.age === undefined || user.age === "" ? "N/A" : user.age;
