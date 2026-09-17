@@ -10,19 +10,19 @@ export default {
   isAdmin: false,
   isPremium: false,
   version: "1.0.0",
-  async run({ sock, msg }) {
-    const start = Date.now();
-    
-    // Send initial message
-    const sentMsg = await sock.sendMessage(msg.key.remoteJid, { text: "Pinging..." });
-    
-    // Calculate response latency
-    const ping = Date.now() - start;
+  async run({ sock, msg, discord }) {
+    // A send followed by an edit measured two Discord/WhatsApp API round trips,
+    // which made a healthy connection look twice as slow. Discord exposes the
+    // gateway heartbeat directly; use it when this command is running there.
+    const gatewayPing = Number(discord?.client?.ws?.ping);
+    const ping = Number.isFinite(gatewayPing) && gatewayPing >= 0
+      ? Math.round(gatewayPing)
+      : null;
 
-    // Edit the previous message to show the formatted result
     await sock.sendMessage(msg.key.remoteJid, {
-      text: `❀ \`${ping}ms\``,
-      edit: sentMsg.key,
+      text: ping == null
+        ? "🏓 Pong! Connection is online."
+        : `🏓 Pong! Gateway latency: \`${ping}ms\``,
     });
   },
 };
