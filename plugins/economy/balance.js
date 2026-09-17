@@ -20,8 +20,7 @@ export default {
       bank: user.bank,
       gems: user.diamonds,
       bankLimit: bankLimitForUser(user),
-      bankCard: user.bankCard,
-      footerLines: ["Buy a bank card in .shop before using deposits or withdrawals."],
+      footerLines: ["Buy higher bank limits in .shop banking."],
     });
 
     if (discord?.message) {

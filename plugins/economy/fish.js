@@ -1,5 +1,5 @@
 import { getUser, saveUser, requireRegistration, addHistory, checkLevelUp } from "./database.js";
-import { FISH_LOOT, SHOP_ITEMS, rollLoot } from "./_items.js";
+import { FISH_LOOT, getItemDefinition, rollLoot } from "./_items.js";
 import { flattenEconomyText, sendEconomyReply } from "../../lib/discordEconomyReply.mjs";
 import { compactMoney } from "../../lib/compactMoney.mjs";
 
@@ -65,7 +65,7 @@ export default {
     } else if (loot.type === "item") {
       user.inventory = user.inventory || [];
       user.inventory.push(loot.name);
-      const def  = SHOP_ITEMS[loot.name];
+      const def  = getItemDefinition(loot.name);
       resultLine = `${def?.emoji || "📦"} Reeled in a *${loot.name}*!`;
       resultType = loot.name;
       await addHistory(sender, "fish", 0, `Fished up ${loot.name}`);

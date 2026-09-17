@@ -1,5 +1,5 @@
 import { getUser, saveUser, requireRegistration, addHistory, maybeAwardDiamonds, checkLevelUp } from "./database.js";
-import { DIG_LOOT, SHOP_ITEMS, rollLoot } from "./_items.js";
+import { DIG_LOOT, getItemDefinition, rollLoot } from "./_items.js";
 import { flattenEconomyText, sendEconomyReply } from "../../lib/discordEconomyReply.mjs";
 import { compactMoney } from "../../lib/compactMoney.mjs";
 
@@ -67,7 +67,7 @@ export default {
     } else if (loot.type === "item") {
       user.inventory = user.inventory || [];
       user.inventory.push(loot.name);
-      const def  = SHOP_ITEMS[loot.name];
+      const def  = getItemDefinition(loot.name);
       resultLine = `${def?.emoji || "📦"} Found a *${loot.name}*!`;
       resultType = loot.name;
       await addHistory(sender, "dig", 0, `Dug up ${loot.name}`);
