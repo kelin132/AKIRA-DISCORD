@@ -102,9 +102,6 @@ export default {
     // `.p` is the fast self-profile shortcut. The generated image does not
     // use card/Pokémon/trainer details, so avoid those extra database reads.
     const isQuickProfile = cmd === "p" && target === sender;
-    const cardUser = isQuickProfile ? null : await getCardUser(target);
-    const websiteAvatar = [cardUser?.profilePictureUrl, cardUser?.profileImage, cardUser?.avatarUrl]
-      .find((value) => typeof value === "string" && /^https?:\/\//i.test(value));
     const mentionedDiscordUser = discord?.message?.mentions?.users?.first?.();
     const discordProfileUser = mentionedDiscordUser || discord?.message?.author;
     const discordAvatar = discordProfileUser?.displayAvatarURL?.({
@@ -112,14 +109,20 @@ export default {
       size: 512,
       forceStatic: true,
     }) || null;
-    const preferredAvatar = websiteAvatar || discordAvatar;
-    const [user, profilePic, pokemonCount, guild, trainer] = await Promise.all([
+
+    // Keep every independent lookup in one batch so another user's profile
+    // does not wait for the cards query before starting the other reads.
+    const [cardUser, user, profilePicFromSocket, pokemonCount, guild, trainer] = await Promise.all([
+      isQuickProfile ? Promise.resolve(null) : getCardUser(target),
       getUser(target),
-      withTimeout(getProfilePic(sock, target, preferredAvatar), 2500),
+      withTimeout(getProfilePic(sock, target, discordAvatar), 2500),
       isQuickProfile ? Promise.resolve(0) : countTrainerPokemon(target),
       withTimeout(guildSystem.getUserPrimaryGuild(target), 2500),
       isQuickProfile ? Promise.resolve(null) : withTimeout(getTrainer(target), 2500),
     ]);
+    const websiteAvatar = [cardUser?.profilePictureUrl, cardUser?.profileImage, cardUser?.avatarUrl]
+      .find((value) => typeof value === "string" && /^https?:\/\//i.test(value));
+    const profilePic = websiteAvatar || profilePicFromSocket;
 
     const tag   = target.split("@")[0].split(":")[0];
     const level = user.level ?? 1;
