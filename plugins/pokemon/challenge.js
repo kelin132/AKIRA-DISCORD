@@ -9,6 +9,7 @@ import {
   clearPendingChallenge, startPvPBattle, hasBattle,
 } from "../../lib/pokemon/battleState.mjs";
 import { generateBattleScene } from "../../lib/pokemon/canvas.mjs";
+import { discordBattleComponents } from "./battle.js";
 import { generateChallengeCanvas } from "../../lib/pokemon/challengeCanvas.mjs";
 import {
   challengeMentionJid,
@@ -138,9 +139,20 @@ export default {
 🏃 \`.battle run\` — Forfeit`;
 
       if (buf) {
-        await sock.sendMessage(jid, { image: buf, caption }, { quoted: msg });
+        await sock.sendMessage(jid, {
+          image: buf,
+          caption,
+          ...(msg.discordChannelId
+            ? { components: discordBattleComponents(challengerLead.moves || [], false) }
+            : {}),
+        }, { quoted: msg });
       } else {
-        await sock.sendMessage(jid, { text: caption }, { quoted: msg });
+        await sock.sendMessage(jid, {
+          text: caption,
+          ...(msg.discordChannelId
+            ? { components: discordBattleComponents(challengerLead.moves || [], false) }
+            : {}),
+        }, { quoted: msg });
       }
       return;
     }

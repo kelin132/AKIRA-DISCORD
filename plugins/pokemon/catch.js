@@ -7,6 +7,7 @@ import { getTrainerParty } from "../../lib/pokemon/pokemonDb.mjs";
 import { pickLeadFromParty } from "../../lib/pokemon/players.mjs";
 import { startWildBattle, hasBattle } from "../../lib/pokemon/battleState.mjs";
 import { generateBattleScene } from "../../lib/pokemon/canvas.mjs";
+import { discordBattleComponents } from "./battle.js";
 import { TYPE_EMOJIS } from "../../lib/pokemon/gameLogic.mjs";
 
 export default {
@@ -100,9 +101,22 @@ ${wildTypeEmoji} Wild ${wildName}
 🏃 Run → \`.battle run\``;
 
     if (sceneBuffer) {
-      await sock.sendMessage(jid, { image: sceneBuffer, caption, mentions: [sender] }, { quoted: msg });
+      await sock.sendMessage(jid, {
+        image: sceneBuffer,
+        caption,
+        mentions: [sender],
+        ...(msg.discordChannelId
+          ? { components: discordBattleComponents(lead.moves || [], true) }
+          : {}),
+      }, { quoted: msg });
     } else {
-      await sock.sendMessage(jid, { text: caption, mentions: [sender] }, { quoted: msg });
+      await sock.sendMessage(jid, {
+        text: caption,
+        mentions: [sender],
+        ...(msg.discordChannelId
+          ? { components: discordBattleComponents(lead.moves || [], true) }
+          : {}),
+      }, { quoted: msg });
     }
   },
 };

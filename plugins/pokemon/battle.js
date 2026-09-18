@@ -12,11 +12,76 @@ import { generateBattleScene, generateCatchScene, generateBattleResult } from ".
 import { fetchPokemon } from "../../lib/pokemon/api.mjs";
 import { setPendingLearn } from "../../lib/pokemon/moveLearnState.mjs";
 import { MART_ITEMS } from "../../lib/pokemon/martItems.mjs";
+import { toDiscordPayload } from "../../lib/discordPayload.mjs";
+import { discordAccountKey } from "../../lib/identity.mjs";
+import { resolveDiscordAccount } from "../../lib/accountLink.mjs";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const DELAY = 3000; // 3-second delay between messages
+const DISCORD_BATTLE_COLOR = "#A970FF";
+
+function discordButton(customId, label, style, emoji) {
+  return {
+    type: 2,
+    style,
+    custom_id: customId,
+    label: String(label).slice(0, 80),
+    ...(emoji ? { emoji: { name: emoji } } : {}),
+  };
+}
+
+export function discordBattleComponents(moves, isWild) {
+  const moveButtons = (moves || []).slice(0, 5).map((move, index) =>
+    discordButton(
+      `battle:move:${index}`,
+      move.name || `Move ${index + 1}`,
+      1,
+      "⚔️",
+    )
+  );
+
+  const controls = [
+    discordButton("battle:bag", "Bag", 2, "🎒"),
+    discordButton("battle:switch", "Switch", 3, "🔄"),
+    ...(isWild ? [discordButton("battle:ball:pokeball", "Pokéball", 1, "🔴")] : []),
+    discordButton("battle:run", "Run", 4, "🏃"),
+  ];
+
+  const rows = [];
+  if (moveButtons.length) rows.push({ type: 1, components: moveButtons });
+  rows.push({ type: 1, components: controls.slice(0, 5) });
+  return rows;
+}
+
+export function discordSwitchComponents(pokemonList) {
+  const buttons = (pokemonList || []).map((pokemon, index) =>
+    discordButton(
+      `battle:switch:${index + 1}`,
+      pokemon.displayName || pokemon.name || `Slot ${index + 1}`,
+      3,
+      TYPE_EMOJIS[pokemon.primaryType] || "⭐",
+    )
+  );
+  const rows = [];
+  for (let index = 0; index < buttons.length; index += 5) {
+    rows.push({ type: 1, components: buttons.slice(index, index + 5) });
+  }
+  return rows;
+}
+
+function createDiscordInteractionSock(interaction) {
+  return {
+    sendMessage: async (_jid, content) => interaction.channel.send(
+      toDiscordPayload(content, {
+        accentColor: DISCORD_BATTLE_COLOR,
+        title: "Pokémon Battle",
+        embedMedia: true,
+      })
+    ),
+  };
+}
 
 async function sendScene(sock, jid, msg, battle, statusText, hitSide, damage, crit, mentions = []) {
   try {
@@ -99,6 +164,9 @@ ${enemyLine}
 🔄 Switch → \`.battle switch\`${ballLine}
 🏃 Run → \`.battle run\``,
     mentions,
+    ...(msg.discordChannelId
+      ? { components: discordBattleComponents(myPokemon.moves || [], isWild) }
+      : {}),
   }, { quoted: msg });
 }
 
@@ -299,6 +367,9 @@ async function handlePvPDefeat(sock, jid, msg, battle, loserJid) {
 ${partyList}
 
 ➤ \`.battle switch <slot number>\` to keep fighting!`,
+        ...(msg.discordChannelId
+          ? { components: discordSwitchComponents(aliveRemainder) }
+          : {}),
     }, { quoted: msg });
     return;
   }
@@ -398,6 +469,9 @@ async function handlePlayerFaint(sock, jid, msg, battle, trainerJid, faintedPoke
 ${partyList}
 
 ➤ \`.battle switch <slot number>\` to keep fighting!`,
+      ...(msg.discordChannelId
+        ? { components: discordSwitchComponents(otherAlive) }
+        : {}),
     }, { quoted: msg });
   } else {
     // No more Pokémon — trainer blacks out
@@ -420,14 +494,7 @@ ${partyList}
 
 // ── Main handler ─────────────────────────────────────────────────────────────
 
-export default {
-  name: "battle",
-  aliases: ["b"],
-  description: "Battle commands: fight, run, item, pokeball, switch",
-  category: "pokemon",
-  usage: ".battle <fight|run|item|pokeball|switch> [args]",
-
-  async run({ sock, msg, sender, args }) {
+async function runBattle({ sock, msg, sender, args }) {
     const jid = msg.discordChannelId || msg.key.remoteJid;
     const sub = (args[0] || "").toLowerCase();
 
@@ -878,6 +945,9 @@ ${hasBalls ? `🎾 *POKÉBALLS* ${battle.type !== "wild" ? "_(wild battles only)
 ${partyList}
 
 Reply: \`.battle switch <slot number>\``,
+          ...(msg.discordChannelId
+            ? { components: discordSwitchComponents(aliveParty) }
+            : {}),
         }, { quoted: msg });
       }
 
@@ -1131,5 +1201,82 @@ ${formatMoveList(moves)}
 
     // ── STATUS (default / no sub) ─────────────────────────────────────────────
     return sendBattlePrompt(sock, jid, msg, myPokemon, enemyPokemon, battle.type, sender);
-  },
+}
+
+function interactionMessage(interaction) {
+  const userId = String(interaction.user?.id || "");
+  return {
+    discordChannelId: interaction.channelId,
+    pushName: interaction.member?.displayName || interaction.user?.globalName
+      || interaction.user?.username || "Trainer",
+    key: {
+      remoteJid: interaction.channelId,
+      participant: discordAccountKey(userId),
+    },
+    message: { conversation: "" },
+  };
+}
+
+async function onDiscordInteraction({ interaction }) {
+  if (!interaction?.isButton?.()) return;
+
+  const [prefix, action, value] = String(interaction.customId || "").split(":");
+  if (prefix !== "battle") return;
+
+  const userId = String(interaction.user?.id || "");
+  const sender = await resolveDiscordAccount(userId).catch(() => null)
+    || discordAccountKey(userId);
+  const jid = interaction.channelId;
+  const battle = getBattle(jid);
+
+  if (!battle) {
+    return interaction.reply({
+      content: "⚔️ This battle has already ended.",
+      ephemeral: true,
+    });
+  }
+
+  const isPlayer = battle.challengerJid === sender || battle.opponentJid === sender;
+  if (!isPlayer) {
+    return interaction.reply({
+      content: "❌ You are not one of the trainers in this battle.",
+      ephemeral: true,
+    });
+  }
+
+  if (!isMyTurn(jid, sender)) {
+    return interaction.reply({
+      content: "⏳ It's not your turn.",
+      ephemeral: true,
+    });
+  }
+
+  await interaction.deferUpdate();
+
+  const argsByAction = {
+    move: ["fight", String(Number(value) + 1)],
+    bag: ["items"],
+    switch: value ? ["switch", value] : ["switch"],
+    ball: ["pokeball", value || "pokeball"],
+    run: ["run"],
+  };
+  const args = argsByAction[action];
+  if (!args) return;
+
+  await runBattle({
+    sock: createDiscordInteractionSock(interaction),
+    msg: interactionMessage(interaction),
+    sender,
+    args,
+  });
+}
+
+export default {
+  name: "battle",
+  aliases: ["b"],
+  description: "Battle commands: fight, run, item, pokeball, switch",
+  category: "pokemon",
+  usage: ".battle <fight|run|item|pokeball|switch> [args]",
+  run: runBattle,
+  onDiscordInteraction,
 };
