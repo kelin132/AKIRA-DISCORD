@@ -92,8 +92,7 @@ export default {
 ┃
 ┃ 🎟️ Your Ticket › already purchased
 ┃
-┃ 💡 Use .lotterylist to see the draw.
-╰━━━━━━━━━━━━━━━━━━━━╯`
+╰━━━━━━━━━━━━━━━━━━━━━━╯`
         );
       }
 
