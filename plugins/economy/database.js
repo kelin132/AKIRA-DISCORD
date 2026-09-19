@@ -17,6 +17,7 @@ export const DEFAULTS = {
   xp:            0,
   bio:           "",
   profileBackground: null,
+  profileFrame:   null,
   age:           null,
   birthday:      null,
   inventory:     [],
