@@ -4,6 +4,7 @@
  */
 import { downloadMediaBuffer, omegaDownload } from "../../lib/omegaDownload.js";
 import { princeMedia, PRINCE_ENDPOINTS } from "../../lib/princeTech.mjs";
+import { kordGet, pickKordMedia, pickKordTitle } from "../../lib/kordApi.mjs";
 
 const processedMessages = new Set();
 
@@ -63,6 +64,17 @@ export default {
       let media;
       let lastError;
       const attempts = [
+        async () => {
+          const data = await kordGet("insta", url.trim());
+          const mediaUrl = pickKordMedia(data, "auto");
+          if (!mediaUrl) throw new Error("Kord returned no Instagram media link");
+          const file = await downloadMediaBuffer(mediaUrl);
+          return {
+            ...file,
+            url: mediaUrl,
+            title: pickKordTitle(data, "Instagram Media"),
+          };
+        },
         () => omegaDownload("all", { url: url.trim() }),
         () => princeMedia(PRINCE_ENDPOINTS.instagram, { url: url.trim() }),
       ];

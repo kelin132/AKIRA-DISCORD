@@ -5,6 +5,7 @@
  */
 import { davidGet } from "../../lib/gifted.js";
 import { downloadMediaBuffer, omegaDownload } from "../../lib/omegaDownload.js";
+import { kordGet, pickKordMedia, pickKordTitle } from "../../lib/kordApi.mjs";
 
 // Deduplicate rapid re-triggers
 const processed = new Set();
@@ -17,6 +18,12 @@ const DAVID_BASE = "https://apis.davidcyril.name.ng";
  */
 async function fetchTikTok(url) {
   const attempts = [
+    async () => {
+      const data = await kordGet("tiktok", url);
+      const dl = pickKordMedia(data, "video");
+      if (!dl) throw new Error("Kord returned no TikTok video link");
+      return { dl, title: pickKordTitle(data, "TikTok Video") };
+    },
     // OmegaTech all-downloader
     () => omegaDownload("all", { url }),
     () => davidGet("/download/tiktok",    { url }),
