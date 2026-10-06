@@ -11,6 +11,7 @@ import {
   getDiscordParticipantId,
   lotteryDisplayName,
   REQUIRED_LOTTERY_ENTRIES,
+  queueLotteryAnnouncement,
 } from "../../lib/lotteryDraw.mjs";
 
 const TICKET_PRICE  = 500;
@@ -121,6 +122,7 @@ export default {
       if (myEntry) {
         myEntry.count += canBuy;
         if (discordId) myEntry.discordId = discordId;
+        if (!discord?.message && String(jid).endsWith("@g.us")) myEntry.groupId = jid;
         if (discord?.message) myEntry.name = lotteryDisplayName({
           name: discord.message.member?.displayName
             || discord.message.author?.globalName
@@ -137,6 +139,7 @@ export default {
             || user.name
             || "User",
           count: canBuy,
+          ...(!discord?.message && String(jid).endsWith("@g.us") ? { groupId: jid } : {}),
         });
       }
       lot.totalTickets += canBuy;
@@ -163,6 +166,7 @@ export default {
               console.error("[lottery] Failed to post configured announcement:", error.message);
             });
           }
+          await queueLotteryAnnouncement({ db: getDb(), result, sourcePlatform: discord?.message ? "discord" : "whatsapp", whatsappGroupId: String(jid).endsWith("@g.us") ? jid : null });
         }
       }
       return;
@@ -201,6 +205,7 @@ export default {
           console.error("[lottery] Failed to post configured announcement:", error.message);
         });
       }
+      await queueLotteryAnnouncement({ db: getDb(), result, sourcePlatform: discord?.message ? "discord" : "whatsapp", whatsappGroupId: String(jid).endsWith("@g.us") ? jid : null });
       return;
     }
 

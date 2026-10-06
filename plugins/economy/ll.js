@@ -1,6 +1,6 @@
 // plugins/economy/ll.js
 // .ll          — show lottery pool status
-// .ll draw     — owner-only: draw winner (requires ≥7 entries)
+// .ll draw     — owner-only: draw three prizes (requires 15 entries)
 // .ll channel  — owner-only: configure the Discord announcement channel
 
 import { getDb } from "../../lib/mongo.mjs";
@@ -12,6 +12,7 @@ import {
 import {
   drawLottery,
   findLotteryTicket,
+  queueLotteryAnnouncement,
   getDiscordParticipantId,
   LOTTERY_PRIZES,
   REQUIRED_LOTTERY_ENTRIES,
@@ -105,6 +106,7 @@ export default {
             console.error("[lottery] Failed to post configured announcement:", error.message);
           });
         }
+        await queueLotteryAnnouncement({ db, result, sourcePlatform: discord?.message ? "discord" : "whatsapp", whatsappGroupId: String(jid).endsWith("@g.us") ? jid : null });
         return;
       }
 

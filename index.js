@@ -19,6 +19,7 @@ import { startDiscordGiveawayService } from "./lib/discordGiveaway.mjs";
 import { log } from "./lib/logger.mjs";
 import { closeDb, connectDb } from "./lib/mongo.mjs";
 import { startHealthServer } from "./lib/health.mjs";
+import { startLotteryAnnouncementRelay, stopLotteryAnnouncementRelay } from "./lib/lotteryAnnouncementRelay.mjs";
 
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const PREFIX = process.env.PREFIX || ".";
@@ -62,6 +63,7 @@ async function start() {
     log("info", `Plugins loaded: ${totalPlugins} plugins, ${totalCommands} commands`);
 
     const client = await connectDiscord(DISCORD_TOKEN);
+    startLotteryAnnouncementRelay(client);
 
     // Safeguard background services
     await startDiscordGiveawayService(client).catch((err) => log("error", `Giveaway service error: ${err.message}`));
@@ -118,6 +120,7 @@ async function start() {
       log("info", `${signal} received; shutting down gracefully`);
       clearInterval(processKeepAlive);
       healthServer?.close();
+      stopLotteryAnnouncementRelay();
       client.destroy();
       await closeDb();
       process.exit(0);
