@@ -19,7 +19,7 @@ const PLANS = {
     duration:   5 * 60 * 1000,      // 5 minutes
     minRet:     0.03,               // 3% min return
     maxRet:     0.10,               // 10% max return
-    lossChance: 0.55,               // 55% crash rate
+    lossChance: 0.90,               // 90% crash rate
     minLoss:    0.30,               // 30% min loss
     maxLoss:    0.50,               // 50% max loss
     minAmt:     1000,
@@ -30,7 +30,7 @@ const PLANS = {
     duration:   30 * 60 * 1000,     // 30 minutes
     minRet:     0.15,               // 15% min return
     maxRet:     0.35,               // 35% max return
-    lossChance: 0.62,               // 62% crash rate
+    lossChance: 0.90,               // 90% crash rate
     minLoss:    0.40,               // 40% min loss
     maxLoss:    0.70,               // 70% max loss
     minAmt:     5000,
@@ -41,7 +41,7 @@ const PLANS = {
     duration:   2 * 60 * 60 * 1000, // 2 hours
     minRet:     0.30,               // 30% min return
     maxRet:     0.80,               // 80% max return
-    lossChance: 0.70,               // 70% crash rate
+    lossChance: 0.90,               // 90% crash rate
     minLoss:    0.60,               // 60% min loss
     maxLoss:    0.85,               // 85% max loss
     minAmt:     25000,
@@ -183,9 +183,9 @@ ${statusMsg}
 High risk, volatile markets!
 
 Plans:
-  ⚡ *.invest <amt> short*  — 5 min  | +3–10% return  | 55% crash risk | $1k min
-  📊 *.invest <amt> medium* — 30 min | +15–35% return | 62% crash risk | $5k min
-  🏦 *.invest <amt> long*   — 2 hrs  | +30–80% return | 70% crash risk | $25k min
+  ⚡ *.invest <amt> short*  — 5 min  | +3–10% return  | 90% crash risk | $1k min
+  📊 *.invest <amt> medium* — 30 min | +15–35% return | 90% crash risk | $5k min
+  🏦 *.invest <amt> long*   — 2 hrs  | +30–80% return | 90% crash risk | $25k min
 
 💡 Max investment: *$90,000,000* per investment
 ⚠️ *Warning:* Market crashes can wipe out up to 100% of your capital!
