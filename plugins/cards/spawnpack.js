@@ -146,6 +146,7 @@ export default {
 
       const pendingCards = allCards.map((card) => ({
         cardId:     card.cardId,
+        claimId:    card.claimId || card.cardId,
         name:       card.name,
         tier:       card.tier,
         tierNum:    card.tierNum || card.tier,
@@ -164,7 +165,7 @@ export default {
       // ── Build summary listing ──────────────────────────────────────────────
       const tierLines = tierResults.map(({ tierName, drawn }) => {
         const emoji = TIER_EMOJI[tierName] || "⭐";
-        const names = drawn.map(c => c.name || "Unknown").join(", ");
+        const names = drawn.map(c => `${c.name || "Unknown"} (#${c.claimId || c.cardId})`).join(", ");
         return `┃ ${emoji} *${tierName}* (${drawn.length}): ${names}`;
       }).join("\n");
 
@@ -179,7 +180,7 @@ ${tierLines}
 ┃ 👛 Wallet › $${ecoUser.money.toLocaleString()}
 ┣━━━━━━━━━━━━━━━━━━━━
 ┃ ✨ Cards are waiting to be claimed!
-┃ Use *.claim* to add the full pack to your collection.
+┃ Use *.claim <number>* to claim each card.
 ╰━━━━━━━━━━━━━━━━━━━━╯`;
 
       // Try to send the best card (Mythical/Tier6) as a media preview

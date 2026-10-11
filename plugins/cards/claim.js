@@ -3,9 +3,21 @@ import { sendCardMedia } from "../../lib/cardApi.mjs";
 
 const activeSpawns = global.activeSpawns || (global.activeSpawns = {});
 
+function getClaimId(card) {
+  return String(card?.claimId || card?.cardId || "").trim();
+}
+
+function matchesClaimId(card, input) {
+  const target = String(input || "").trim().toUpperCase();
+  return [card?.claimId, card?.cardId].some(
+    (value) => String(value || "").trim().toUpperCase() === target,
+  );
+}
+
 function toOwnedCard(card, spawnId) {
   return {
     cardId:     card.cardId,
+    claimId:    getClaimId(card),
     name:       card.name,
     tier:       card.tier,
     tierNum:    card.tierNum || card.tier,
@@ -26,7 +38,7 @@ function claimText(card, sender, prefix = "𝐂𝐀𝐑𝐃 𝐂𝐋𝐀𝐈𝐌
 │ 🃏 *Name*      :: \`${card.name}\`
 │ ⭐ *Tier*      :: \`${card.tier}\`
 │ 📺 *Series*    :: \`${card.series}\`
-│ 🆔 *ID*        :: \`${card.cardId}\`
+│ 🔢 *Claim #*  :: \`${getClaimId(card)}\`
 │
 │ ✅ Added to your collection!
 │ 💬 Use \`.col\` to view it.
@@ -38,7 +50,7 @@ export default {
   aliases: ["collect"],
   category: "cards",
   description: "Claim your pending summon, spawn pack, or spawned card",
-  usage: ".claim [card_id]",
+  usage: ".claim [number]",
 
   async run({ sock, msg, args, sender }) {
     const jid = msg.key.remoteJid;
@@ -53,11 +65,11 @@ export default {
 
       // Personal pending claims created by .summon or .spawnpack.
       const hasMatchingPending = cardIdInput
-        ? user.pendingCards.some((card) => String(card.cardId || "").toUpperCase() === cardIdInput)
+        ? user.pendingCards.some((card) => matchesClaimId(card, cardIdInput))
         : false;
       if (hasMatchingPending) {
         const selected = cardIdInput
-          ? user.pendingCards.filter((card) => String(card.cardId || "").toUpperCase() === cardIdInput).slice(0, 1)
+          ? user.pendingCards.filter((card) => matchesClaimId(card, cardIdInput)).slice(0, 1)
           : user.pendingCards.slice();
 
         user.cards.push(...selected.map((card) => toOwnedCard(card, card.spawnId)));
@@ -93,15 +105,17 @@ export default {
         const active = activeSpawns[spawnKey];
         return reply(
           active
-            ? `🃏 A card is waiting to be claimed!\n\nUse \`.claim ${active.cardId}\` to claim it.`
-            : "❌ Please include the Card ID after `.claim`.\n\nExample: `.claim ABC123`",
+            ? `🃏 A card is waiting to be claimed!\n\nUse \`.claim ${getClaimId(active.card) || active.cardId}\` to claim it.`
+            : "❌ Please include the Claim # after `.claim`.\n\nExample: `.claim 12345`",
         );
       }
 
       // Preserve the existing chat-wide auto-spawn claim flow.
       const spawn = activeSpawns[spawnKey];
       if (!spawn) return reply("❌ No active card spawn in this chat.");
-      if (spawn.cardId !== cardIdInput) return reply("❌ Wrong Card ID! Try again.");
+      if (!matchesClaimId({ ...(spawn.card || {}), cardId: spawn.card?.cardId || spawn.cardId }, cardIdInput)) {
+        return reply("❌ Wrong claim number! Try again.");
+      }
 
       const card = spawn.card;
       if (!card) {
