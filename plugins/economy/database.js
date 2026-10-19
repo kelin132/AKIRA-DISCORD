@@ -61,52 +61,11 @@ export const DEFAULTS = {
   bannedAt:      null,
 };
 
-let economyMigrationPromise;
-
-async function ensureRyuEconomyMigration(db) {
-  if (!economyMigrationPromise) {
-    economyMigrationPromise = (async () => {
-      const claim = await db.collection("economy_migrations").updateOne(
-        { _id: "ryu-economy-v1" },
-        { $setOnInsert: { createdAt: new Date(), description: "Reset economy to ryu" } },
-        { upsert: true },
-      );
-      if (claim.upsertedCount === 1) {
-        await db.collection("users").updateMany(
-          { registered: true },
-          {
-            $set: {
-              money: STARTING_MONEY,
-              bank: 0,
-              bankLimit: BASE_BANK_LIMIT,
-              bankUpgradeLevel: 0,
-              economyVersion: 1,
-            },
-            $unset: { vault: "", totalWealth: "" },
-          },
-        );
-      }
-      await db.collection("users").updateMany(
-        { $or: [{ bankCard: { $exists: true } }, { bankLimit: { $exists: true } }] },
-        { $unset: { bankCard: "", bankLimit: "" } },
-      );
-      await db.collection("users").updateMany(
-        { inventory: { $in: ["bank_card", "bank_limit_upgrade"] } },
-        { $pull: { inventory: { $in: ["bank_card", "bank_limit_upgrade"] } } },
-      );
-    })().catch((error) => {
-      economyMigrationPromise = undefined;
-      throw error;
-    });
-  }
-  await economyMigrationPromise;
-}
-
 // ─── Core CRUD ────────────────────────────────────────────────────────────────
 
 export async function getUser(id) {
   const db   = await getDb();
-  await ensureRyuEconomyMigration(db);
+  // Wallet reset migrations must never run as a side effect of reading a user.
   const user = await findUserByIdentity(id);
   if (!user) return { ...DEFAULTS };
   const { _id, ...rest } = user;

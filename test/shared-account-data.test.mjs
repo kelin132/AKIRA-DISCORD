@@ -87,6 +87,18 @@ test("Discord saves repair a legacy missing wealth field from the shared wallet 
   await economy.saveUser(discord, profile);
   assert.equal(db.data.users.find(user => user._id === lid).totalWealth, 12945);
 });
+
+test("reading accounts with no migration marker cannot reset any player's balances", async () => {
+  const balances = db.data.users.map(({ _id, money, bank }) => ({ _id, money, bank }));
+  const originalCollection = db.collection.bind(db);
+  db.collection = name => {
+    assert.notEqual(name, "economy_migrations", "a user read must not initialize the old reset migration");
+    return originalCollection(name);
+  };
+  await economy.getUser(discord);
+  await economy.getUser(other);
+  assert.deepEqual(db.data.users.map(({ _id, money, bank }) => ({ _id, money, bank })), balances);
+});
 test("linked trainer, party, PC, counts and mutations agree on both identities", async () => {
   assert.deepEqual(await trainers.getTrainer(discord), await trainers.getTrainer(phone));
   assert.deepEqual(await pokemon.getAllTrainerPokemon(discord), await pokemon.getAllTrainerPokemon(phone));

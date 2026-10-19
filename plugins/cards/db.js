@@ -5,7 +5,7 @@
 import { getDb } from "../../lib/mongo.mjs";
 import { BSON } from "mongodb";
 import { normalizeJid, economyAccountId } from "../../lib/identity.mjs";
-import { accountIdentityValues, collectionIdentityQuery } from "../../lib/collectionIdentity.mjs";
+import { accountIdentityValues, collectionOwnershipQuery } from "../../lib/collectionIdentity.mjs";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -43,7 +43,7 @@ export async function findOrCreateUser(sender) {
   if (existing) return existing;
   const col    = await Col.users();
   const normalized = normalizeJid(await economyAccountId(sender));
-  const userId = uid(normalized);
+  const userId = normalized.endsWith("@lid") ? normalized : uid(normalized);
   const user = await col.findOneAndUpdate({ userId }, {
     $setOnInsert: {
       userId,
@@ -65,7 +65,7 @@ export async function findOrCreateUser(sender) {
 export async function getUser(sender) {
   const col    = await Col.users();
   const values = await accountIdentityValues(sender);
-  const records = (await col.find(collectionIdentityQuery(values,
+  const records = (await col.find(collectionOwnershipQuery(values,
     ["_id", "userId", "jid", "owner"],
   )).toArray()).filter(record => record.userId !== "discord");
   // Older uid() stripped every standalone account to literal "discord".

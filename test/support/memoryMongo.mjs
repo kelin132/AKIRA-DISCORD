@@ -10,6 +10,7 @@ function set(doc, key, value) {
   target[parts.at(-1)] = clone(value);
 }
 function condition(actual, expected) {
+  if (expected instanceof RegExp) return typeof actual === "string" && expected.test(actual);
   if (!expected || typeof expected !== "object" || Array.isArray(expected) || expected instanceof Date || expected instanceof ObjectId) return equal(actual, expected);
   return Object.entries(expected).every(([op, value]) => {
     if (op === "$in") return (Array.isArray(actual) ? actual : [actual]).some(item => value.some(candidate => equal(item, candidate)));
