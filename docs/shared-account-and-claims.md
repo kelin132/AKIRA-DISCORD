@@ -8,6 +8,12 @@ connected through an active, verified `account_links` record.
   verified legacy phone/LID aliases. Reads and saves retain its original `_id`
   and unique `websiteId`; no users are copied or deleted and balances are not
   added together.
+- Shared lookups follow only unambiguous one-to-one active Discord links and
+  explicit identity fields. Conflicting link rows and generic `owner`/`sender`
+  values cannot pull another user's profile into a collection read.
+- LIDs are matched by their full `@lid` identifier, not by bare digits that
+  could be another user's phone key. Numeric-only legacy rows stay isolated
+  until an explicit owner identity is available.
 - Cards and pending cards combine records under those verified ownership keys.
   Pokémon trainer, party, PC and count readers use the same account aliases.
   Saves target the original collection/trainer documents.

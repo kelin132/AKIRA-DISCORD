@@ -4,7 +4,7 @@ import { registerHooks } from "node:module";
 import { createMemoryDb } from "./support/memoryMongo.mjs";
 
 const phone = "263771234567@s.whatsapp.net";
-const lid = "54321@lid";
+const lid = "263779999999@lid";
 const discord = "discord:123456789012345678";
 const other = "263779999999@s.whatsapp.net";
 let db;
@@ -29,7 +29,7 @@ beforeEach(() => {
     ],
     account_links: [{ whatsappId: phone, discordId: "123456789012345678", status: "active" }],
     mn_users: [
-      { _id: "wa-cards", userId: 54321, cards: [{ cardId: "a", name: "WhatsApp copy" }], pendingCards: [{ cardId: "p", name: "Old pending" }] },
+      { _id: "wa-cards", userId: lid, cards: [{ cardId: "a", name: "WhatsApp copy" }], pendingCards: [{ cardId: "p", name: "Old pending" }] },
       { _id: "discord-cards", userId: discord, cards: [{ cardId: "b", name: "Discord copy" }], pendingCards: [{ cardId: "q", name: "Discord pending" }] },
       { _id: "empty", userId: "263771234567", cards: [] },
       { _id: "other", userId: "263779999999", cards: [{ cardId: "c", name: "Other user's card" }] },
@@ -42,9 +42,10 @@ beforeEach(() => {
     ],
     pokemon_owned: [
       { _id: "p1", ownerJid: lid, inParty: true },
-      { _id: "p2", owner: 54321, inParty: false },
+      { _id: "p2", owner: lid, inParty: false },
       { _id: "p3", ownerJid: discord, inParty: false },
       { _id: "p4", ownerJid: other, inParty: true },
+      { _id: "p5", owner: 263779999999, inParty: false },
     ],
   });
   globalThis.sharedDataFixture = db;
@@ -90,6 +91,7 @@ test("linked trainer, party, PC, counts and mutations agree on both identities",
   assert.deepEqual(await trainers.getTrainer(discord), await trainers.getTrainer(phone));
   assert.deepEqual(await pokemon.getAllTrainerPokemon(discord), await pokemon.getAllTrainerPokemon(phone));
   assert.equal(await pokemon.countTrainerPokemon(discord), 3);
+  assert.ok((await pokemon.getAllTrainerPokemon(other)).some(p => p._id === "p5"));
   assert.equal((await pokemon.getTrainerParty(discord)).length, 1);
   assert.equal((await pokemon.getTrainerPC(discord)).length, 2);
   await trainers.addCoins(discord, 25);
@@ -118,4 +120,31 @@ test("actual collection commands show the same linked cards on either identity",
   assert.match(messages[0], /WhatsApp copy/);
   assert.match(messages[0], /Discord copy/);
   assert.doesNotMatch(messages[0], /Unassignable|Other user's/);
+});
+
+test("conflicting links and generic owner fields cannot merge a different user's data", async () => {
+  const conflictingDiscord = "999999999999999999";
+  db.data.account_links.push({
+    whatsappId: phone,
+    discordId: conflictingDiscord,
+    status: "active",
+  });
+  db.data.users.push({
+    _id: "discord:999999999999999999",
+    discordId: conflictingDiscord,
+    owner: phone,
+    registered: true,
+    money: 987654,
+  });
+  db.data.mn_users.push({
+    _id: "conflicting-discord-cards",
+    userId: "discord:999999999999999999",
+    cards: [{ cardId: "foreign", name: "Must stay private" }],
+  });
+
+  const profile = await cards.getUser(phone);
+  assert.deepEqual(profile.cards.map(card => card.name), ["WhatsApp copy"]);
+  assert.ok(!profile.cards.some(card => card.name === "Discord copy" || card.name === "Must stay private"));
+  assert.equal((await economy.getUser(phone)).money, 12345);
+  assert.notEqual((await economy.getUser(phone)).money, 987654);
 });
