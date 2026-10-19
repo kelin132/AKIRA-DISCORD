@@ -87,48 +87,45 @@ async function scrapePinterest(query) {
   }
 }
 
-async function searchPinterestImages(query) {
+async function* searchPinterestImages(query) {
   const seen = new Set();
-  const urls = [];
 
   // Try direct scrape first
   const scraped = await scrapePinterest(query);
+  const scrapedUrls = [];
   for (const url of scraped) {
     if (!seen.has(url)) {
       seen.add(url);
-      urls.push(url);
+      scrapedUrls.push(url);
     }
   }
+  if (scrapedUrls.length) yield scrapedUrls.slice(0, 4);
 
-  if (urls.length < 5) {
-    const attempts = [
-      () => searchGet("pinterest",   { query }, 8_000),
-      () => get("/search/pinterest", { query }, 8_000),
-      () => davidGet("/search/pinterest", { query }, 8_000),
-    ];
+  const attempts = [
+    () => searchGet("pinterest",   { query }, 8_000),
+    () => get("/search/pinterest", { query }, 8_000),
+    () => davidGet("/search/pinterest", { query }, 8_000),
+  ];
 
-    for (const attempt of attempts) {
-      try {
-        const data = await attempt();
-        for (const item of resultItems(data)) {
-          const url = imageUrlFrom(item);
-          if (!url || !/^https?:\/\//i.test(url) || seen.has(url)) continue;
-          seen.add(url);
-          urls.push(url);
-        }
-        if (urls.length) break;
-      } catch { /* try next */ }
-    }
+  for (const attempt of attempts) {
+    try {
+      const data = await attempt();
+      const urls = [];
+      for (const item of resultItems(data)) {
+        const url = imageUrlFrom(item);
+        if (!url || !/^https?:\/\//i.test(url) || seen.has(url)) continue;
+        seen.add(url);
+        urls.push(url);
+      }
+      if (urls.length) yield urls.slice(0, 4);
+    } catch { /* try next */ }
   }
-
-  if (!urls.length) throw new Error("No Pinterest results found.");
-  return urls.slice(0, 12);
 }
 export { searchPinterestImages };
 
 async function downloadImage(url) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8_000);
+  const timer = setTimeout(() => controller.abort(), 6_000);
 
   try {
     const response = await fetch(url, {
@@ -193,25 +190,25 @@ Examples:
         text: `🔍 Searching Pinterest for *"${text}"*...`,
       }, { quoted: msg });
 
-      const imageUrls = await searchPinterestImages(text);
       let sent = 0;
-
-      for (const imageUrl of imageUrls) {
-        if (sent >= 3) break;
-        try {
-          const image = await downloadImage(imageUrl);
-          await sock.sendMessage(jid, {
-            image,
-          }, { quoted: msg });
-          sent++;
-        } catch (error) {
-          console.warn(`[pinterest] skipped image: ${error.message}`);
+      for await (const imageUrls of searchPinterestImages(text)) {
+        let providerSent = 0;
+        for (const imageUrl of imageUrls.slice(0, 2)) {
+          try {
+            const image = await downloadImage(imageUrl);
+            await sock.sendMessage(jid, { image }, { quoted: msg });
+            sent++;
+            providerSent++;
+          } catch (error) {
+            console.warn(`[pinterest] skipped image: ${error.message}`);
+          }
         }
+        if (providerSent) break;
       }
 
       if (!sent) {
         await sock.sendMessage(jid, {
-          text: "❌ Found results but could not load any images.",
+          text: "❌ No usable Pinterest images found.",
         }, { quoted: msg });
       }
 
