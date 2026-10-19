@@ -16,7 +16,7 @@ connected through an active, verified `account_links` record.
   A potentially mixed legacy `mn_users` document under that generic key is
   preserved but excluded from automatic attribution: its cards cannot safely
   be assigned to a player without independent ownership evidence.
-- Public card claim codes are stable eight-character uppercase alphanumeric
+- Public card claim codes are stable five-character uppercase alphanumeric
   values derived from character name and tier, not long API IDs or tier-local
   array positions. Persistent card IDs are unchanged. Old claim IDs, card IDs
   and indexes remain accepted for already-pending cards and live spawns.
