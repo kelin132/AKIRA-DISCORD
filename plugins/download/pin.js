@@ -70,15 +70,20 @@ function imageUrlFrom(item) {
 }
 
 async function scrapePinterest(query) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 6_000);
   try {
     const url = `https://www.pinterest.com/resource/BaseSearchResource/get/?source_url=%2Fsearch%2Fpins%2F%3Fq%3D${encodeURIComponent(query)}&data=%7B%22options%22%3A%7B%22isPrefetch%22%3Afalse%2C%22query%22%3A%22${encodeURIComponent(query)}%22%2C%22scope%22%3A%22pins%22%2C%22no_fetch_context_on_resource%22%3Afalse%7D%2C%22context%22%3A%7B%7D%7D&_=1714450000000`;
-    const res = await fetch(url, { headers: IMAGE_HEADERS });
+    const res = await fetch(url, { headers: IMAGE_HEADERS, signal: controller.signal });
+    if (!res.ok) throw new Error(`Pinterest HTTP ${res.status}`);
     const json = await res.json();
     const items = json?.resource_response?.data?.results || [];
     return items.map(i => i.images?.orig?.url || i.images?.["736x"]?.url).filter(Boolean);
   } catch (err) {
     console.error("Pinterest scrape failed:", err.message);
     return [];
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -97,9 +102,9 @@ async function searchPinterestImages(query) {
 
   if (urls.length < 5) {
     const attempts = [
-      () => searchGet("pinterest",   { query }),
-      () => get("/search/pinterest", { query }),
-      () => davidGet("/search/pinterest", { query }),
+      () => searchGet("pinterest",   { query }, 8_000),
+      () => get("/search/pinterest", { query }, 8_000),
+      () => davidGet("/search/pinterest", { query }, 8_000),
     ];
 
     for (const attempt of attempts) {
@@ -111,6 +116,7 @@ async function searchPinterestImages(query) {
           seen.add(url);
           urls.push(url);
         }
+        if (urls.length) break;
       } catch { /* try next */ }
     }
   }
@@ -118,10 +124,11 @@ async function searchPinterestImages(query) {
   if (!urls.length) throw new Error("No Pinterest results found.");
   return urls.slice(0, 12);
 }
+export { searchPinterestImages };
 
 async function downloadImage(url) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15_000);
+  const timer = setTimeout(() => controller.abort(), 8_000);
 
   try {
     const response = await fetch(url, {
@@ -190,7 +197,7 @@ Examples:
       let sent = 0;
 
       for (const imageUrl of imageUrls) {
-        if (sent >= 10) break;
+        if (sent >= 3) break;
         try {
           const image = await downloadImage(imageUrl);
           await sock.sendMessage(jid, {
