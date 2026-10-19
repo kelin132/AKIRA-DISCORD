@@ -13,5 +13,6 @@ test("index setup reuses equivalent website indexes and runs only once", async (
   await Promise.all([ensurePerformanceIndexes(db), ensurePerformanceIndexes(db)]);
   assert.ok([...listed.values()].every(count => count === 1));
   assert.ok(!created.some(row => row.name === "identity_links"));
+  assert.ok(created.some(row => row.name === "users" && row.spec.whatsappId === 1));
   assert.ok(created.some(row => row.name === "account_links"));
 });
