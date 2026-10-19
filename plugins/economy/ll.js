@@ -4,6 +4,7 @@
 // .ll channel  — owner-only: configure the Discord announcement channel
 
 import { getDb } from "../../lib/mongo.mjs";
+import { findAccountLotteryTicket } from "../../lib/lotteryEntry.mjs";
 import { addHistory } from "./database.js";
 import {
   getLotteryAnnouncementChannel,
@@ -11,7 +12,6 @@ import {
 } from "../../lib/lotterySettings.mjs";
 import {
   drawLottery,
-  findLotteryTicket,
   queueLotteryAnnouncement,
   getDiscordParticipantId,
   LOTTERY_PRIZES,
@@ -20,12 +20,6 @@ import {
 import { generateWAMessageFromContent, proto } from "@whiskeysockets/baileys";
 
 const REQUIRED = REQUIRED_LOTTERY_ENTRIES;
-
-function lotteryUserId(sender) {
-  return String(sender || "").startsWith("discord:")
-    ? String(sender)
-    : String(sender || "").split("@")[0];
-}
 
 export default {
   name: "ll",
@@ -114,11 +108,10 @@ export default {
       const tickets = lot?.tickets || [];
       const totalEntries = lot?.totalTickets || 0;
       const jackpot = lot?.jackpot ?? 0;
-      const myCount = findLotteryTicket(
-        tickets,
-        lotteryUserId(sender),
+      const myCount = (await findAccountLotteryTicket(
+        db, tickets, sender,
         getDiscordParticipantId(discord, rawSender),
-      )?.count ?? 0;
+      ))?.count ?? 0;
 
       if (discord) {
         return sock.sendMessage(jid, {

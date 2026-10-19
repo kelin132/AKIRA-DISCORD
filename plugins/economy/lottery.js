@@ -2,14 +2,13 @@
  * .lottery       — buy one lottery ticket ($500; one ticket per player)
  * .lottery draw — owner-only: draw the winning tickets
  */
-import { getUser, saveUser, requireRegistration, addHistory, getAllUsers } from "./database.js";
+import { getUser, requireRegistration, addHistory } from "./database.js";
 import { getDb } from "../../lib/mongo.mjs";
+import { getLotteryRound, findAccountLotteryTicket, purchaseLotteryTicket } from "../../lib/lotteryEntry.mjs";
 import { getLotteryAnnouncementChannel } from "../../lib/lotterySettings.mjs";
 import {
   drawLottery,
-  findLotteryTicket,
   getDiscordParticipantId,
-  lotteryDisplayName,
   REQUIRED_LOTTERY_ENTRIES,
   queueLotteryAnnouncement,
 } from "../../lib/lotteryDraw.mjs";
@@ -24,19 +23,7 @@ function randomBaseJackpot() {
 }
 
 async function getLottery() {
-  const db  = getDb();
-  let doc   = await db.collection("lottery").findOne({ _id: "current" });
-  if (!doc) {
-    const base = randomBaseJackpot();
-    doc = { _id: "current", tickets: [], totalTickets: 0, jackpot: base, baseJackpot: base, createdAt: new Date() };
-    await db.collection("lottery").insertOne(doc);
-  }
-  return doc;
-}
-
-async function saveLottery(data) {
-  const { _id, ...rest } = data;
-  await getDb().collection("lottery").updateOne({ _id: "current" }, { $set: rest }, { upsert: true });
+  return getLotteryRound(getDb(), randomBaseJackpot());
 }
 
 export default {
@@ -62,12 +49,9 @@ export default {
       }
       const count = 1;
 
-      const lot     = await getLottery();
-      const userId  = sender.startsWith("discord:")
-        ? sender
-        : sender.split("@")[0];
+      let lot     = await getLottery();
       const discordId = getDiscordParticipantId(discord, rawSender);
-      const myEntry = findLotteryTicket(lot.tickets, userId, discordId);
+      const myEntry = await findAccountLotteryTicket(getDb(), lot.tickets, sender, discordId);
       const myCount = myEntry?.count ?? 0;
 
       if (myCount >= MAX_TICKETS) {
@@ -114,36 +98,23 @@ export default {
         );
       }
 
-      user.money -= cost;
-      await saveUser(sender, user);
-      await addHistory(sender, "lottery", -cost, `Bought ${canBuy} lottery ticket(s)`);
-
-      lot.jackpot += cost;
-      if (myEntry) {
-        myEntry.count += canBuy;
-        if (discordId) myEntry.discordId = discordId;
-        if (!discord?.message && String(jid).endsWith("@g.us")) myEntry.groupId = jid;
-        if (discord?.message) myEntry.name = lotteryDisplayName({
-          name: discord.message.member?.displayName
-            || discord.message.author?.globalName
-            || discord.message.author?.username
-            || myEntry.name,
-        });
-      } else {
-        lot.tickets.push({
-          userId,
-          discordId: discordId || undefined,
-          name: discord?.message?.member?.displayName
-            || discord?.message?.author?.globalName
-            || discord?.message?.author?.username
-            || user.name
-            || "User",
-          count: canBuy,
-          ...(!discord?.message && String(jid).endsWith("@g.us") ? { groupId: jid } : {}),
-        });
+      const purchase = await purchaseLotteryTicket({
+        db: getDb(), lot, sender, discordId, price: cost,
+        name: discord?.message?.member?.displayName
+          || discord?.message?.author?.globalName
+          || discord?.message?.author?.username || user.name,
+        groupId: !discord?.message ? jid : null,
+      });
+      if (!purchase.ok) {
+        return reply(purchase.reason === "duplicate"
+          ? "⚠️ You have already entered the global lottery on WhatsApp or Discord."
+          : purchase.reason === "funds" ? "❌ Not enough cash for a ticket."
+            : "⏳ The lottery is drawing now. Please try again in a moment.");
       }
-      lot.totalTickets += canBuy;
-      await saveLottery(lot);
+      await addHistory(purchase.accountId, "lottery", -cost, "Bought one lottery ticket").catch(error => {
+        console.error("[lottery] Could not record purchase history:", error.message);
+      });
+      lot = await getLottery();
 
       await reply("✅ You have entered the global lottery.");
 

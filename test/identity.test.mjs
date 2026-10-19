@@ -18,6 +18,11 @@ test("queries both migrated and namespaced Discord identities", () => {
   });
 });
 
+test("does not double-prefix a Discord sender already in shared storage format", () => {
+  assert.equal(discordAccountKey("discord:123"), "discord:123");
+  assert.deepEqual(identityQuery("discord:123", true), identityQuery("123", true));
+});
+
 test("keeps WhatsApp identity fields unchanged", () => {
   assert.deepEqual(identityInsertFields("123@s.whatsapp.net"), {
     _id: "123@s.whatsapp.net",

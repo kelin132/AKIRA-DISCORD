@@ -3,11 +3,15 @@
  * Collections: mn_users, mn_cards, mn_card_market, mn_spawn_settings
  */
 import { getDb } from "../../lib/mongo.mjs";
+import { BSON } from "mongodb";
+import { normalizeJid, economyAccountId } from "../../lib/identity.mjs";
+import { accountIdentityValues, collectionIdentityQuery } from "../../lib/collectionIdentity.mjs";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 export function uid(sender) {
-  return (sender ?? "").split("@")[0].split(":")[0];
+  const raw = String(sender ?? "");
+  return raw.startsWith("discord:") ? raw : raw.split("@")[0].split(":")[0];
 }
 
 export function tag(jid) {
@@ -35,33 +39,24 @@ export const Col = {
  * Find or create a user. Returns the document with a save() method attached.
  */
 export async function findOrCreateUser(sender) {
+  const existing = await getUser(sender);
+  if (existing) return existing;
   const col    = await Col.users();
-  const userId = uid(sender);
-
-  let user = await col.findOne({ userId });
-  if (!user) {
-    user = {
+  const normalized = normalizeJid(await economyAccountId(sender));
+  const userId = uid(normalized);
+  const user = await col.findOneAndUpdate({ userId }, {
+    $setOnInsert: {
       userId,
-      whatsappNumber: sender,
+      whatsappNumber: normalized,
       balance:    0,
       cards:      [],
       cardLimit:  Infinity,
       totalCards: 0,
       username:   null,
       createdAt:  new Date(),
-    };
-    const { insertedId } = await col.insertOne(user);
-    user._id = insertedId;
-  }
-
-  user.markModified = () => {}; // no-op — raw driver doesn't need it
-  user.save = async () => {
-    const c = await Col.users();
-    const { _id, save, markModified, ...data } = user;
-    await c.updateOne({ userId }, { $set: data });
-  };
-
-  return user;
+    },
+  }, { upsert: true, returnDocument: "after", includeResultMetadata: false });
+  return attachCardSave([user]);
 }
 
 /**
@@ -69,15 +64,67 @@ export async function findOrCreateUser(sender) {
  */
 export async function getUser(sender) {
   const col    = await Col.users();
-  const userId = uid(sender);
-  const user   = await col.findOne({ userId });
-  if (!user) return null;
+  const values = await accountIdentityValues(sender);
+  const records = (await col.find(collectionIdentityQuery(values,
+    ["_id", "userId", "whatsappNumber", "jid", "owner", "identityAliases"],
+  )).toArray()).filter(record => record.userId !== "discord");
+  // Older uid() stripped every standalone account to literal "discord".
+  // That potentially mixed document cannot safely be assigned to any player.
+  if (!records.length) return null;
+  records.sort((a, b) => (b.cards?.length || 0) - (a.cards?.length || 0)
+    || String(a._id).localeCompare(String(b._id)));
+  return attachCardSave(records);
+}
 
+function attachCardSave(records) {
+  const primary = records[0];
+  const sources = new WeakMap();
+  const originals = new Map();
+  const pendingSources = new WeakMap();
+  const pendingOriginals = new Map();
+  const pendingCards = records.flatMap(record => {
+    const pending = Array.isArray(record.pendingCards) ? record.pendingCards : [];
+    pendingOriginals.set(record, BSON.deserialize(BSON.serialize({ pending })).pending);
+    for (const card of pending) if (card && typeof card === "object") pendingSources.set(card, record);
+    return pending;
+  });
+  const cards = records.flatMap(record => {
+    const owned = Array.isArray(record.cards) ? record.cards : [];
+    originals.set(record, BSON.deserialize(BSON.serialize({ cards: owned })).cards);
+    for (const card of owned) if (card && typeof card === "object") sources.set(card, record);
+    return owned;
+  });
+  const user = { ...primary, cards, pendingCards, totalCards: cards.length };
   user.markModified = () => {};
   user.save = async () => {
-    const c = await Col.users();
-    const { _id, save, markModified, ...data } = user;
-    await c.updateOne({ userId }, { $set: data });
+    const { _id, save, markModified, cards: currentCards, pendingCards: currentPending, totalCards, ...data } = user;
+    const grouped = new Map(records.map(record => [record, []]));
+    const groupedPending = new Map(records.map(record => [record, []]));
+    for (const card of currentPending) {
+      const source = card && typeof card === "object" ? pendingSources.get(card) : null;
+      groupedPending.get(source || primary).push(card);
+    }
+    for (const card of currentCards) {
+      const source = card && typeof card === "object" ? sources.get(card) : null;
+      grouped.get(source || primary).push(card);
+    }
+    const col = await Col.users();
+    for (const record of records) {
+      const owned = grouped.get(record);
+      const pending = groupedPending.get(record);
+      const result = await col.updateOne({
+        _id: record._id, ...(Array.isArray(record.cards) ? { cards: originals.get(record) } : {}),
+        ...(Array.isArray(record.pendingCards) ? { pendingCards: pendingOriginals.get(record) } : {}),
+      }, { $set: { ...(record === primary ? data : {}), cards: owned, pendingCards: pending, totalCards: owned.length } });
+      if (result.matchedCount === 0) throw new Error("Your collection changed. Reload it and retry.");
+      originals.set(record, BSON.deserialize(BSON.serialize({ cards: owned })).cards);
+      record.cards = owned;
+      pendingOriginals.set(record, BSON.deserialize(BSON.serialize({ pending })).pending);
+      record.pendingCards = pending;
+      for (const card of pending) if (card && typeof card === "object") pendingSources.set(card, record);
+      for (const card of owned) if (card && typeof card === "object") sources.set(card, record);
+    }
+    user.totalCards = currentCards.length;
   };
   return user;
 }

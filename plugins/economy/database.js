@@ -3,6 +3,7 @@
  * All economy / staff plugins import from here.
  */
 import { getDb } from "../../lib/mongo.mjs";
+import { findUserByIdentity, economyAccountId } from "../../lib/identity.mjs";
 import { BASE_BANK_LIMIT, STARTING_MONEY } from "./currency.js";
 
 export const DEFAULTS = {
@@ -106,10 +107,11 @@ async function ensureRyuEconomyMigration(db) {
 export async function getUser(id) {
   const db   = await getDb();
   await ensureRyuEconomyMigration(db);
-  const user = await db.collection("users").findOne({ _id: id });
+  const user = await findUserByIdentity(id);
   if (!user) return { ...DEFAULTS };
   const { _id, ...rest } = user;
   const merged = { ...DEFAULTS, ...rest };
+  merged.totalWealth = Number(merged.money || 0) + Number(merged.bank || 0);
   // Retire the old card/service entries from existing inventories. Bank
   // access is now available by default and capacity is controlled by tiers.
   merged.inventory = (Array.isArray(merged.inventory) ? merged.inventory : [])
@@ -162,8 +164,11 @@ const MONOTONIC_FIELDS = new Set(["level"]);
 
 export async function saveUser(id, data) {
   const db = await getDb();
+  id = await economyAccountId(id);
   // Strip _id and _snap — neither should be stored in MongoDB
   const { _id, _snap, ...safeData } = data;
+  // This is derived data, never a caller's stale snapshot.
+  delete safeData.totalWealth;
 
   // ── WALLET_CAP enforcement (adjust in-memory before computing deltas) ──────
   if ((safeData.money ?? 0) > WALLET_CAP) {
@@ -199,6 +204,8 @@ export async function saveUser(id, data) {
       }
     }
 
+    const wealthDelta = (incOp.money || 0) + (incOp.bank || 0);
+    if (wealthDelta !== 0) incOp.totalWealth = wealthDelta;
     const update = {};
     if (Object.keys(incOp).length > 0) update.$inc = incOp;
     if (Object.keys(maxOp).length > 0) update.$max = maxOp;
@@ -207,20 +214,22 @@ export async function saveUser(id, data) {
 
     await db.collection("users").updateOne({ _id: id }, update, { upsert: true });
 
-    // Clamp any balance that went negative due to concurrent bets both losing.
-    // The aggregation pipeline syntax ($max) is available in MongoDB 4.2+.
+    // Clamp balances and derive wealth from the live document, not a stale
+    // Discord snapshot. This also repairs legacy rows missing totalWealth.
     await db.collection("users").updateOne(
-      {
-        _id: id,
-        $or: [{ money: { $lt: 0 } }, { bank: { $lt: 0 } }],
-      },
+      { _id: id },
       [{ $set: {
-        money: { $max: ["$money", 0] },
-        bank:  { $max: ["$bank",  0] },
+        money: { $max: [{ $ifNull: ["$money", 0] }, 0] },
+        bank:  { $max: [{ $ifNull: ["$bank", 0] }, 0] },
+        totalWealth: { $add: [
+          { $max: [{ $ifNull: ["$money", 0] }, 0] },
+          { $max: [{ $ifNull: ["$bank", 0] }, 0] },
+        ] },
       }}]
     );
   } else {
     // New user (no snapshot) — safe to $set everything since nobody else has this doc yet
+    safeData.totalWealth = Number(safeData.money || 0) + Number(safeData.bank || 0);
     await db.collection("users").updateOne(
       { _id: id },
       { $set: safeData },
@@ -402,12 +411,13 @@ export async function getAllUsers() {
 
 export async function isRegistered(id) {
   const db   = await getDb();
-  const user = await db.collection("users").findOne({ _id: id }, { projection: { registered: 1 } });
+  const user = await findUserByIdentity(id, { projection: { registered: 1 } });
   return !!(user?.registered);
 }
 
 export async function registerUser(id, name) {
   const db = await getDb();
+  id = await economyAccountId(id);
   const { name: _n, registered: _r, registeredAt: _ra, ...insertDefaults } = DEFAULTS;
   await db.collection("users").updateOne(
     { _id: id },
@@ -443,6 +453,7 @@ export async function requireRegistration(sock, msg, sender) {
  */
 export async function addHistory(id, type, amount, desc) {
   const db = await getDb();
+  id = await economyAccountId(id);
   const entry = { type, amount, desc, ts: Date.now() };
   await db.collection("users").updateOne(
     { _id: id },
@@ -463,6 +474,7 @@ export async function addHistory(id, type, amount, desc) {
  */
 export async function addMoney(id, amount) {
   const db = await getDb();
+  id = await economyAccountId(id);
   await db.collection("users").updateOne(
     { _id: id },
     { $inc: { money: amount } }

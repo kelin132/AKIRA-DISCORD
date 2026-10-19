@@ -1,9 +1,8 @@
 // plugins/pokemon/t2party.js
 // Transfer a Pokémon from PC to party
 
-import { getTrainer } from "../../lib/pokemon/players.mjs";
+import { getTrainer, removeFromPC, updateTrainer } from "../../lib/pokemon/players.mjs";
 import { getTrainerPC, getTrainerParty, updatePokemon } from "../../lib/pokemon/pokemonDb.mjs";
-import { getDb } from "../../lib/mongo.mjs";
 import { isInBattle } from "../../lib/pokemon/battleState.mjs";
 
 export default {
@@ -69,17 +68,10 @@ export default {
 
     const pokemonIdStr = target._id.toString();
 
-    // FIX: Directly update the trainer document in one atomic operation instead
-    // of going through addToParty(), which has its own trainer.party.length guard
-    // that can incorrectly block the transfer when stale IDs exist in the array.
-    const db = await getDb();
-    await db.collection("pokemon_trainers").updateOne(
-      { jid: sender },
-      {
-        $pull:     { pc: pokemonIdStr },
-        $addToSet: { party: pokemonIdStr },
-      }
-    );
+    // Use verified aliases for legacy trainer records, not only exact sender.
+    // The live party query above already enforces the six-Pokemon cap.
+    await removeFromPC(sender, pokemonIdStr);
+    await updateTrainer(sender, { $addToSet: { party: pokemonIdStr } });
 
     // Mark the Pokémon document as in-party
     await updatePokemon(target._id, { inParty: true });

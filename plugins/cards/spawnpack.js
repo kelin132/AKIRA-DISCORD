@@ -1,3 +1,4 @@
+import { getCardClaimId } from "../../lib/cardClaimId.mjs";
 /**
  * KELIN MD — .spawnpack
  * Buy a spawn pack containing a bundle of cards at a discounted price.
@@ -146,7 +147,7 @@ export default {
 
       const pendingCards = allCards.map((card) => ({
         cardId:     card.cardId,
-        claimId:    card.claimId || card.cardId,
+        claimId:    getCardClaimId(card),
         name:       card.name,
         tier:       card.tier,
         tierNum:    card.tierNum || card.tier,
@@ -165,7 +166,7 @@ export default {
       // ── Build summary listing ──────────────────────────────────────────────
       const tierLines = tierResults.map(({ tierName, drawn }) => {
         const emoji = TIER_EMOJI[tierName] || "⭐";
-        const names = drawn.map(c => `${c.name || "Unknown"} (#${c.claimId || c.cardId})`).join(", ");
+        const names = drawn.map(c => `${c.name || "Unknown"} (#${getCardClaimId(c)})`).join(", ");
         return `┃ ${emoji} *${tierName}* (${drawn.length}): ${names}`;
       }).join("\n");
 
