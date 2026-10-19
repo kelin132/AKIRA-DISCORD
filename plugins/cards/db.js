@@ -66,7 +66,7 @@ export async function getUser(sender) {
   const col    = await Col.users();
   const values = await accountIdentityValues(sender);
   const records = (await col.find(collectionIdentityQuery(values,
-    ["_id", "userId", "whatsappNumber", "jid", "owner", "identityAliases"],
+    ["_id", "userId", "jid", "owner"],
   )).toArray()).filter(record => record.userId !== "discord");
   // Older uid() stripped every standalone account to literal "discord".
   // That potentially mixed document cannot safely be assigned to any player.

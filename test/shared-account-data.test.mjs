@@ -32,7 +32,7 @@ beforeEach(() => {
       { _id: "wa-cards", userId: lid, cards: [{ cardId: "a", name: "WhatsApp copy" }], pendingCards: [{ cardId: "p", name: "Old pending" }] },
       { _id: "discord-cards", userId: discord, cards: [{ cardId: "b", name: "Discord copy" }], pendingCards: [{ cardId: "q", name: "Discord pending" }] },
       { _id: "empty", userId: "263771234567", cards: [] },
-      { _id: "other", userId: "263779999999", cards: [{ cardId: "c", name: "Other user's card" }] },
+      { _id: "other", userId: "263779999999", whatsappNumber: phone, identityAliases: [lid, phone], cards: [{ cardId: "c", name: "Other user's card" }] },
       { _id: "unsafe-old-bucket", userId: "discord", whatsappNumber: discord, cards: [{ cardId: "mixed", name: "Unassignable mixed card" }] },
     ],
     pokemon_trainers: [
@@ -45,7 +45,7 @@ beforeEach(() => {
       { _id: "p2", owner: lid, inParty: false },
       { _id: "p3", ownerJid: discord, inParty: false },
       { _id: "p4", ownerJid: other, inParty: true },
-      { _id: "p5", owner: 263779999999, inParty: false },
+      { _id: "p5", owner: 263779999999, whatsappNumber: phone, identityAliases: [lid, phone], inParty: false },
     ],
   });
   globalThis.sharedDataFixture = db;
