@@ -20,6 +20,7 @@ import { log } from "./lib/logger.mjs";
 import { closeDb, connectDb } from "./lib/mongo.mjs";
 import { startHealthServer } from "./lib/health.mjs";
 import { startLotteryAnnouncementRelay, stopLotteryAnnouncementRelay } from "./lib/lotteryAnnouncementRelay.mjs";
+import { startCommunityInviteSync } from "./lib/communityInvite.mjs";
 
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const PREFIX = process.env.PREFIX || ".";
@@ -64,6 +65,7 @@ async function start() {
 
     const client = await connectDiscord(DISCORD_TOKEN);
     startLotteryAnnouncementRelay(client);
+    const stopCommunityInviteSync = startCommunityInviteSync(client);
 
     // Safeguard background services
     await startDiscordGiveawayService(client).catch((err) => log("error", `Giveaway service error: ${err.message}`));
@@ -121,6 +123,7 @@ async function start() {
       clearInterval(processKeepAlive);
       healthServer?.close();
       stopLotteryAnnouncementRelay();
+      stopCommunityInviteSync();
       client.destroy();
       await closeDb();
       process.exit(0);
