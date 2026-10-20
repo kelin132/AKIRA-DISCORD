@@ -9,6 +9,8 @@ import { parseAmount } from "./parseAmount.js";
 import { formatWalletTransfer } from "./walletMessage.js";
 import { discordAccountKey } from "../../lib/identity.mjs";
 import { resolveDiscordAccount } from "../../lib/accountLink.mjs";
+import { hasActiveBidder, withBidderLock } from "../../lib/auctionManager.mjs";
+import { hasActiveAuctionHolds } from "../../lib/auctionHolds.mjs";
 
 async function resolveDiscordTarget(discordMessage) {
   if (!discordMessage) return null;
@@ -99,38 +101,43 @@ export default {
       return reply("❌ Please provide a valid amount.\nExamples: *.give @user 500* or *.give @user 25k*");
     }
 
-    // ── Checks ─────────────────────────────────────────────────────────────
-    const giver = await getUser(sender);
+    return withBidderLock(sender, async () => {
+      // ── Checks ───────────────────────────────────────────────────────────
+      const giver = await getUser(sender);
+      if (hasActiveBidder(sender) || hasActiveAuctionHolds(giver)) {
+        return reply("❌ You can't transfer money while you hold the highest auction bid. You can transfer again if you're outbid or after the auction ends.");
+      }
 
-    if (giver.money < amount) {
-      return reply(`❌ You don't have enough cash!\n\n💰 Your balance: $${giver.money.toLocaleString()}`);
-    }
+      if (giver.money < amount) {
+        return reply(`❌ You don't have enough cash!\n\n💰 Your balance: $${giver.money.toLocaleString()}`);
+      }
 
-    if (!await isRegistered(targetJid)) {
-      return reply("❌ That player is not registered in the economy system.");
-    }
+      if (!await isRegistered(targetJid)) {
+        return reply("❌ That player is not registered in the economy system.");
+      }
 
-    const receiver = await getUser(targetJid);
+      const receiver = await getUser(targetJid);
 
-    // ── Transfer ───────────────────────────────────────────────────────────
-    giver.money    -= amount;
-    receiver.money += amount;
+      // ── Transfer ─────────────────────────────────────────────────────────
+      giver.money    -= amount;
+      receiver.money += amount;
 
-    await saveUser(sender, giver);
-    await saveUser(targetJid, receiver);
-    await addHistory(sender,    "donate_out", -amount, `Donated $${amount.toLocaleString()} to ${receiver.name}`);
-    await addHistory(targetJid, "donate_in",   amount, `Received $${amount.toLocaleString()} from ${giver.name}`);
+      await saveUser(sender, giver);
+      await saveUser(targetJid, receiver);
+      await addHistory(sender,    "donate_out", -amount, `Donated $${amount.toLocaleString()} to ${receiver.name}`);
+      await addHistory(targetJid, "donate_in",   amount, `Received $${amount.toLocaleString()} from ${giver.name}`);
 
-    await sock.sendMessage(jid, {
-      text: formatWalletTransfer({
-        action: "DONATION SENT",
-        amount,
-        senderJid: sender,
-        targetJid,
-        receiverName: receiver.name,
-        balance: giver.money,
-      }),
-      mentions: [sender, targetJid],
-    }, { quoted: msg });
+      await sock.sendMessage(jid, {
+        text: formatWalletTransfer({
+          action: "DONATION SENT",
+          amount,
+          senderJid: sender,
+          targetJid,
+          receiverName: receiver.name,
+          balance: giver.money,
+        }),
+        mentions: [sender, targetJid],
+      }, { quoted: msg });
+    });
   },
 };

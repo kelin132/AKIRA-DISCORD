@@ -1,5 +1,7 @@
 import { findOrCreateUser, fmt, tag } from "./db.js";
 import { getUser, saveUser } from "../economy/database.js";
+import { hasActiveBidder, withBidderLock } from "../../lib/auctionManager.mjs";
+import { hasActiveAuctionHolds } from "../../lib/auctionHolds.mjs";
 
 // In-memory trade requests — keyed by jid+target so each chat is isolated
 const tradeRequests = new Map();
@@ -23,22 +25,29 @@ export default {
         const req = tradeRequests.get(jid + sender);
         if (!req) return reply("❌ You don't have any pending card purchase requests.");
 
+        return withBidderLock(sender, async () => {
+        const currentReq = tradeRequests.get(jid + sender);
+        if (!currentReq) return reply("❌ You don't have any pending card purchase requests.");
+
         // Economy money lives in the economy DB (money field), NOT the card system balance
-        const econBuyer  = await getUser(req.buyer);
-        const econSeller = await getUser(req.seller);
+        const econBuyer  = await getUser(currentReq.buyer);
+        const econSeller = await getUser(currentReq.seller);
+        if (hasActiveBidder(sender) || hasActiveAuctionHolds(econBuyer)) {
+          return reply("❌ You can't transfer money for a card purchase while you hold the highest auction bid. Try again if you're outbid or after the auction ends.");
+        }
 
         const buyerMoney = (econBuyer?.money || 0) + (econBuyer?.bank || 0);
-        if (buyerMoney < req.price) {
+        if (buyerMoney < currentReq.price) {
           tradeRequests.delete(jid + sender);
           return reply(
             `❌ You don't have enough money to buy this card.\n\n` +
             `💰 You have: *$${fmt(econBuyer?.money || 0)}* (wallet) + *$${fmt(econBuyer?.bank || 0)}* (bank)\n` +
-            `🏷️ Price: *$${fmt(req.price)}*`
+            `🏷️ Price: *$${fmt(currentReq.price)}*`
           );
         }
 
         // Deduct from buyer — take from wallet first, then bank if needed
-        let remaining = req.price;
+        let remaining = currentReq.price;
         const walletDeduct = Math.min(econBuyer.money || 0, remaining);
         econBuyer.money = (econBuyer.money || 0) - walletDeduct;
         remaining -= walletDeduct;
@@ -47,13 +56,13 @@ export default {
         }
 
         // Credit seller's wallet
-        econSeller.money = (econSeller.money || 0) + req.price;
+        econSeller.money = (econSeller.money || 0) + currentReq.price;
 
         // Verify seller still has the card (by cardId + index)
-        const seller = await findOrCreateUser(req.seller);
-        const buyer  = await findOrCreateUser(req.buyer);
+        const seller = await findOrCreateUser(currentReq.seller);
+        const buyer  = await findOrCreateUser(currentReq.buyer);
 
-        const cardIdx = seller.cards.findIndex((c, i) => i === req.cardIndex && c.cardId === req.cardId);
+        const cardIdx = seller.cards.findIndex((c, i) => i === currentReq.cardIndex && c.cardId === currentReq.cardId);
         if (cardIdx === -1) {
           tradeRequests.delete(jid + sender);
           return reply("❌ The seller no longer has this card.");
@@ -66,8 +75,8 @@ export default {
         // Save card collections and economy balances
         await seller.save();
         await buyer.save();
-        await saveUser(req.buyer,  econBuyer);
-        await saveUser(req.seller, econSeller);
+        await saveUser(currentReq.buyer,  econBuyer);
+        await saveUser(currentReq.seller, econSeller);
         tradeRequests.delete(jid + sender);
 
         return await sock.sendMessage(jid, {
@@ -75,12 +84,13 @@ export default {
 `🤝 *CARD TRADE COMPLETE*
 
 🃏 Card: *${card.name}*
-💰 Price: *$${fmt(req.price)}*
+💰 Price: *$${fmt(currentReq.price)}*
 
-📤 Seller: ${tag(req.seller)}
-📥 Buyer: ${tag(req.buyer)}`,
-          mentions: [req.seller, req.buyer],
+📤 Seller: ${tag(currentReq.seller)}
+📥 Buyer: ${tag(currentReq.buyer)}`,
+          mentions: [currentReq.seller, currentReq.buyer],
         }, { quoted: msg });
+        });
       }
 
       // ── CREATE REQUEST ───────────────────────────────────────────────────────
