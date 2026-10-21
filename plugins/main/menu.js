@@ -73,7 +73,7 @@ function renderDiscordCategory(emoji, title, disabledTag, plugins, menuPrefix) {
     return `**${plugin.name}**\n${aliasLine}\n${plugin.description || "No description available."}`;
   });
 
-  return `**${emoji} ${title}${disabledTag}**\n\n${entries.join("\n\n")}`;
+  return `**${emoji}${title}${disabledTag}**\n\n${entries.join("\n\n")}`;
 }
 
 function chunkForDiscord(text, maxLength = 1900) {
@@ -179,14 +179,14 @@ function discordMenuPayload(token, session) {
   const title = category ? (categoryTitles[category] || category.toUpperCase()) : "OVERVIEW";
   const footerLabel = categoryIndex < 0
     ? `Overview • ${categories.length} categories`
-    : `Category ${categoryIndex + 1}/${categories.length} • ${title}`;
+    : `Category ${categoryIndex + 1}/${categories.length} •${title}`;
   const pageDescription = categoryIndex < 0
     ? "Use **Browse categories** below to choose a command group."
     : categoryTexts.get(category)?.[0] || "No commands are available in this category.";
   const totalCommands = categorySummaries.reduce((total, item) => total + item.count, 0);
   const embed = new EmbedBuilder()
     .setColor("#0099ff")
-    .setTitle(`Hello ${userName}, I'm ${runtime.botName}`)
+    .setTitle(`Hello ${userName}, I'm${runtime.botName}`)
     .setDescription(pageDescription)
     .setImage(runtime.botImage)
     .addFields(
@@ -198,7 +198,7 @@ function discordMenuPayload(token, session) {
     });
   if (categoryIndex < 0) {
     embed.addFields(categorySummaries.map((item) => ({
-      name: `${item.emoji} ${item.title}`,
+      name: `${item.emoji}${item.title}`,
       value: item.preview || `${item.count} command${item.count === 1 ? "" : "s"}`,
       inline: true,
     })).slice(0, 25));
@@ -257,7 +257,7 @@ export default {
     const map = new Map();
     for (const plugin of allPlugins) {
       if (plugin.hidden) continue;
-      const cat = plugin.category || "other";
+      const cat = plugin.category ? normalizeCategory(plugin.category) : "other";
       if (!map.has(cat)) map.set(cat, []);
       map.get(cat).push(plugin);
     }
@@ -284,7 +284,7 @@ export default {
     const visibleCats = requestedCategory ? [requestedCategory] : sortedCats;
     let text = requestedCategory
       ? `*MENU*\n${isDiscord ? "" : `\n${READMORE}\n`}`
-      : `*Hello ${mention}, I am ${runtime.botName}* 👋
+      : `*Hello ${mention}, I am${runtime.botName}* 👋
 \n${isDiscord ? "" : `${READMORE}\n`}`;
 
     for (const cat of visibleCats) {
