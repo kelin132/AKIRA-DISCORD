@@ -742,11 +742,26 @@ export async function resetPlayer(id) {
  */
 export async function setPlayerFields(id, fields) {
   const db = await getDb();
-  await db.collection("users").updateOne(
-    { _id: id },
-    { $set: fields },
-    { upsert: true }
+  const user = await findUserByIdentity(id, { projection: { _id: 1, registered: 1 } });
+  if (!user || user.registered !== true) return false;
+  const { totalWealth: _ignoredTotalWealth, ...safeFields } = fields;
+  const result = await db.collection("users").updateOne(
+    { _id: user._id, registered: true },
+    [
+      { $set: safeFields },
+      {
+        $set: {
+          totalWealth: {
+            $add: [
+              { $ifNull: ["$money", 0] },
+              { $ifNull: ["$bank", 0] },
+            ],
+          },
+        },
+      },
+    ],
   );
+  return result.matchedCount === 1;
 }
 
 // ─── Ban system ───────────────────────────────────────────────────────────────

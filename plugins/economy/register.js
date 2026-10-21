@@ -51,9 +51,9 @@ function discordRegistrationEmbed({ name, alreadyRegistered = false }) {
 
 export default {
   name: "register",
-  description: "Register your account to access economy commands",
+  description: "Get the AIDORU account setup and linking instructions",
   category: "economy",
-  usage: ".register <your_name>",
+  usage: ".register",
   aliases: ["reg", "signup"],
   discordColor: "#57B894",
   discordTitle: "✅ Welcome to AKIRA Economy",
@@ -61,6 +61,8 @@ export default {
 
   async run({ sock, msg, sender, text, discord }) {
     if (discord?.message) {
+      // Keep the group response identical to the onboarding DM; Discord
+      // accounts are created on the website, not with a bot-side name prompt.
       return discord.message.reply(
         createAidoruOnboardingPayload(discord.message.member || discord.message.author),
       );
