@@ -1,6 +1,6 @@
 // plugins/economy/ll.js
 // .ll          — show lottery pool status
-// .ll draw     — owner-only: draw three prizes (requires 15 entries)
+// .ll draw     — owner-only: draw three prizes (requires 20 entries)
 // .ll channel  — owner-only: configure the Discord announcement channel
 
 import { getDb } from "../../lib/mongo.mjs";
