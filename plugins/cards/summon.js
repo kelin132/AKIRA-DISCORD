@@ -8,8 +8,8 @@
  * .summon           — random tier summon; claim it later with .claim
  * .summon <tier>    — specific tier (1-6, S, or Common/Uncommon/Rare/Epic/Legendary/Mythical/Secret)
  */
-import { findOrCreateUser } from "./db.js";
-import { getUser, saveUser, requireRegistration, addHistory } from "../economy/database.js";
+import { findOrCreateUser, getUser as getCardUser } from "./db.js";
+import { getUser, debitWalletIfAvailable, addMoney, requireRegistration, addHistory } from "../economy/database.js";
 import {
   buildDiscordSummonPayload,
   fetchCardByTier,
@@ -23,6 +23,7 @@ import { getSeries } from "../../lib/seriesEnrich.mjs";
 import { flattenEconomyText, sendEconomyReply } from "../../lib/discordEconomyReply.mjs";
 import { compactMoney } from "../../lib/compactMoney.mjs";
 import { getCardClaimId } from "../../lib/cardClaimId.mjs";
+import { persistChargedSummon } from "../../lib/summonPersistence.mjs";
 
 // ── Summon costs by tier ──────────────────────────────────────────────────────
 export const SUMMON_COST = {
@@ -86,11 +87,27 @@ export default {
         ...card, series: series || "Unknown", claimId: getCardClaimId(card),
         spawnId: createSpawnId(), summonedAt: new Date(),
       };
-      ecoUser.money -= cost;
-      await saveUser(sender, ecoUser);
       cardUser.pendingCards = Array.isArray(cardUser.pendingCards) ? cardUser.pendingCards : [];
-      cardUser.pendingCards.push(pendingCard);
-      await cardUser.save();
+      const payment = await persistChargedSummon({
+        debit: () => debitWalletIfAvailable(sender, cost),
+        savePending: async () => {
+          cardUser.pendingCards.push(pendingCard);
+          await cardUser.save();
+        },
+        hasPending: async () => {
+          const latest = await getCardUser(sender);
+          return latest?.pendingCards?.some((entry) => entry?.spawnId === pendingCard.spawnId) === true;
+        },
+        refund: () => addMoney(sender, cost),
+      });
+      if (payment.status === "insufficient") return reply(`❌ Not enough coins. Required: $${cost.toLocaleString()}.`);
+      if (payment.status !== "saved") {
+        console.error("[summon] pending-card write failed after debit:", payment.error);
+        return reply(payment.status === "refunded"
+          ? "❌ The card could not be saved. Your coins were refunded."
+          : "⚠️ The summon could not be confirmed. Check .claim before trying again; your wallet was not changed again.");
+      }
+      ecoUser.money = payment.wallet.money;
       await addHistory(sender, "summon", -cost, `Summoned ${tier} card`).catch(() => {});
       const text = `${TIER_EMOJI[tier] || "🃏"} ${card.name} summoned!\n`
         + `Use ${prefix}claim ${pendingCard.claimId} to collect it.\n`

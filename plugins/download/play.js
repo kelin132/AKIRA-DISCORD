@@ -8,6 +8,7 @@ import { get, davidGet } from "../../lib/gifted.js";
 import { downloadMediaBuffer, omegaDownload } from "../../lib/omegaDownload.js";
 import { princeMedia, PRINCE_ENDPOINTS } from "../../lib/princeTech.mjs";
 import { kordGet, pickKordMedia, pickKordTitle } from "../../lib/kordApi.mjs";
+import { requireAudioPayload } from "../../lib/audioPayload.mjs";
 
 // ── YouTube search ────────────────────────────────────────────────────────────
 
@@ -106,15 +107,6 @@ async function valoreAudio(videoUrl) {
   return { dl: audio.url, title: payload?.data?.title || "YouTube Audio" };
 }
 
-function isUnsafeRemoteAudioUrl(value) {
-  try {
-    const host = new URL(value).hostname.toLowerCase();
-    return /(^|\.)googlevideo\.com$|(^|\.)youtube\.com$|(^|\.)youtu\.be$/.test(host);
-  } catch {
-    return true;
-  }
-}
-
 // ── Try downloading via multiple endpoints ────────────────────────────────────
 
 export async function fetchAudio(videoUrl, searchTitle = "") {
@@ -151,18 +143,17 @@ export async function fetchAudio(videoUrl, searchTitle = "") {
   ];
 
   let lastError;
-  let lastDownloadUrl = "";
-  let lastTitle = "";
   for (const attempt of endpoints) {
     try {
       const data = await attempt();
       if (data?.buffer) {
-        const mimetype = String(data.mimetype || "").toLowerCase();
-        if (mimetype && !mimetype.startsWith("audio/")) {
-          lastError = new Error("Provider returned non-audio media");
+        try {
+          const format = requireAudioPayload(data.buffer);
+          return { ...data, mimetype: format.mime, extension: format.extension };
+        } catch (error) {
+          lastError = error;
           continue;
         }
-        return { ...data, mimetype: mimetype || "audio/mpeg" };
       }
       const result = data?.result || data?.data || data;
       const dl = data?.dl || pickAudio(result);
@@ -170,30 +161,16 @@ export async function fetchAudio(videoUrl, searchTitle = "") {
         lastError = new Error("Provider returned no audio URL");
         continue;
       }
-      // Keep a CDN/proxy URL for the final remote fallback. Do not pass
-      // short-lived, IP-bound googlevideo URLs to WhatsApp.
-      if (!isUnsafeRemoteAudioUrl(dl)) {
-        lastDownloadUrl = dl;
-        lastTitle = result?.title || data?.title || "";
-      }
       try {
         const file = await downloadMediaBuffer(dl);
-        if (file.mimetype && !file.mimetype.startsWith("audio/") && !/\.(mp3|m4a|aac|ogg|wav)(?:\?|$)/i.test(dl)) {
-          throw new Error("Provider returned non-audio media");
-        }
-        return { buffer: file.buffer, mimetype: file.mimetype || "audio/mpeg", title: result?.title || data?.title || "" };
+        const format = requireAudioPayload(file.buffer);
+        return { buffer: file.buffer, mimetype: format.mime, extension: format.extension, title: result?.title || data?.title || "" };
       } catch (mediaError) {
         lastError = mediaError;
       }
     } catch (error) {
       lastError = error;
     }
-  }
-
-  // Some media hosts deny the bot server's buffer request while still
-  // allowing WhatsApp's media fetcher to retrieve the fresh signed URL.
-  if (lastDownloadUrl && /HTTP 403/i.test(lastError?.message || "")) {
-    return { remoteUrl: lastDownloadUrl, title: lastTitle, mimetype: "audio/mpeg" };
   }
 
   throw new Error(`All audio download sources failed. ${lastError?.message || "No provider returned usable audio."}`);
@@ -222,24 +199,14 @@ export default {
       const meta = await ytSearch(text);
       await sendBanner(sock, jid, msg, meta, "Fetching audio… please wait");
 
-      const { dl, remoteUrl, buffer, mimetype: returnedMimetype, title } = await fetchAudio(meta.url, meta.title);
+      const { buffer, mimetype, extension, title } = await fetchAudio(meta.url, meta.title);
       const trackTitle = title || meta.title;
-      if (remoteUrl) {
-        await sock.sendMessage(jid, {
-          audio: { url: remoteUrl },
-          mimetype: "audio/mpeg",
-          fileName: `${trackTitle}.mp3`,
-          ptt: false,
-        }, { quoted: msg });
-        return;
-      }
-      const file = buffer ? { buffer, mimetype: returnedMimetype || "audio/mpeg" } : await downloadMediaBuffer(dl);
-      const mimetype = file.mimetype.startsWith("audio/") ? file.mimetype : "audio/mpeg";
+      const format = requireAudioPayload(buffer);
 
       await sock.sendMessage(jid, {
-        audio: file.buffer,
+        audio: buffer,
         mimetype,
-        fileName: `${trackTitle}.mp3`,
+        fileName: `${trackTitle}.${extension || format.extension}`,
         ptt: false,
       }, { quoted: msg });
 
