@@ -1,4 +1,4 @@
-export const CURRENCY_NAME = "ryu";
+export const CURRENCY_NAME = "$";
 export const STARTING_MONEY = 30_000;
 export const BASE_BANK_LIMIT = 50_000;
 
@@ -36,7 +36,7 @@ function trim(value) {
 export function formatRyu(value) {
   const amount = Number(value) || 0;
   const sign = amount < 0 ? "-" : "";
-  return `${sign}${compact(amount)} ${CURRENCY_NAME}`;
+  return `${sign}${CURRENCY_NAME}${compact(amount)}`;
 }
 
 export function bankTierForUser(user = {}) {
@@ -57,7 +57,7 @@ export function getBettingTier(amount) {
 }
 
 export function bettingTierLabel(tier) {
-  const upper = Number.isFinite(tier.maximum) ? formatRyu(tier.maximum) : "11m+ ryu";
+  const upper = Number.isFinite(tier.maximum) ? formatRyu(tier.maximum) : "$11m+";
   return `${formatRyu(tier.minimum)} – ${upper}: ${tier.winRate * 100}% win / ×${tier.multiplier}`;
 }
 

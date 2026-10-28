@@ -106,7 +106,7 @@ export default {
 `╭─❀「 🎲 *𝐁𝐄𝐓* 」❀─╮
 │ Usage: \`.bet <amount>\`
 │ Examples: \`.bet 500\`  /  \`.bet 10k\`  /  \`.bet 1b\`
-│ Maximum: \`300B ryu\`
+│ Maximum: \`$5M\`
 │ \`.bet all\` — bet everything in wallet
 │ \`.bet half\` — bet half your wallet
 │
@@ -141,7 +141,7 @@ export default {
         fields: [{ name: "Wallet", value: fmt(user.money), inline: true }],
       });
     if (amount < 10)
-      return sendText("❌ Minimum bet is `10 ryu`.", {
+      return sendText("❌ Minimum bet is `$10`.", {
         title: "❌ Bet Too Small",
         color: "#E74C3C",
       });
@@ -161,7 +161,7 @@ export default {
 
       const { leveled, startLevel, newLevel } = checkLevelUp(user);
       await saveUser(sender, user);
-      await addHistory(sender, "bet", netWin, `Bet won — wagered ${amount.toLocaleString()} ryu at ×${tier.multiplier}`);
+      await addHistory(sender, "bet", netWin, `Bet won — wagered $${amount.toLocaleString()} at ×${tier.multiplier}`);
 
       const tag = user.name || sender.split("@")[0].split(":")[0];
       await sendResult({
@@ -180,7 +180,7 @@ export default {
     } else {
       user.money = Math.max(0, user.money - amount);
       await saveUser(sender, user);
-      await addHistory(sender, "bet", -amount, `Bet lost — wagered ${amount.toLocaleString()} ryu`);
+      await addHistory(sender, "bet", -amount, `Bet lost — wagered $${amount.toLocaleString()}`);
 
       await sendResult({
         won: false,
