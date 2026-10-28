@@ -35,6 +35,9 @@ export async function ytSearch(input) {
 function pickAudio(result) {
   if (!result) return null;
   return (
+    result.dl ||
+    result.download ||
+    result.dl_url ||
     result.download_url ||
     result.audio_url    ||
     result.audio        ||
