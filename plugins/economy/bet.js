@@ -38,7 +38,7 @@ function fmt(n) {
 
 export default {
   name: "bet",
-  description: "Gamble your cash using amount-based ryu betting tiers",
+  description: "Gamble your cash using amount-based money tiers",
   category: "economy",
   usage: ".bet <amount | all | half>  ✦ shorthand OK: 10k / 5m / 1b",
   aliases: ["gamble2", "wager"],
@@ -116,7 +116,7 @@ export default {
         {
           fields: [
             { name: "Wallet", value: fmt(user.money), inline: true },
-            { name: "Maximum", value: "300B ryu", inline: true },
+            { name: "Maximum", value: "$5M", inline: true },
             { name: "Betting tiers", value: "50% ×1.7 → 9% ×10", inline: true },
           ],
         },
