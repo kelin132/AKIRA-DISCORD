@@ -5,6 +5,7 @@
 import { downloadMediaBuffer, omegaDownload } from "../../lib/omegaDownload.js";
 import { princeMedia, PRINCE_ENDPOINTS } from "../../lib/princeTech.mjs";
 import { kordGet, pickKordMedia, pickKordTitle } from "../../lib/kordApi.mjs";
+import { knightbotGet, pickKnightMedia, pickKnightTitle } from "../../lib/knightbotApi.mjs";
 
 const processedMessages = new Set();
 
@@ -64,6 +65,7 @@ export default {
       let media;
       let lastError;
       const attempts = [
+        async () => { const data = await knightbotGet("download/instagram", { url: url.trim() }); const mediaUrl = pickKnightMedia(data, url.trim()); if (!mediaUrl) throw new Error("KnightBot returned no Instagram media"); const file = await downloadMediaBuffer(mediaUrl); return { ...file, url: mediaUrl, title: pickKnightTitle(data, "Instagram Media") }; },
         async () => {
           const data = await kordGet("insta", url.trim());
           const mediaUrl = pickKordMedia(data, "auto");

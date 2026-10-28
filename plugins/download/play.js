@@ -8,6 +8,7 @@ import { get, davidGet } from "../../lib/gifted.js";
 import { downloadMediaBuffer, omegaDownload } from "../../lib/omegaDownload.js";
 import { princeMedia, PRINCE_ENDPOINTS } from "../../lib/princeTech.mjs";
 import { kordGet, pickKordMedia, pickKordTitle } from "../../lib/kordApi.mjs";
+import { knightbotGet, pickKnightMedia, pickKnightTitle } from "../../lib/knightbotApi.mjs";
 import { requireAudioPayload } from "../../lib/audioPayload.mjs";
 
 // ── YouTube search ────────────────────────────────────────────────────────────
@@ -111,6 +112,7 @@ async function valoreAudio(videoUrl) {
 
 export async function fetchAudio(videoUrl, searchTitle = "") {
   const endpoints = [
+    async () => { const data = await knightbotGet("download", { type: "mp3", url: videoUrl }); const dl = pickKnightMedia(data, videoUrl); if (!dl) throw new Error("KnightBot returned no audio link"); return { dl, title: pickKnightTitle(data, "YouTube Audio") }; },
     async () => {
       const data = await kordGet("yt-song", videoUrl);
       const dl = pickKordMedia(data, "audio");
