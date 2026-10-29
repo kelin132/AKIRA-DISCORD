@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import { getDb } from "../../lib/mongo.mjs";
 import { findUserByIdentity, economyAccountId } from "../../lib/identity.mjs";
 import { BASE_BANK_LIMIT, STARTING_MONEY } from "./currency.js";
+import { invalidateAccountIdentityCache } from "../../lib/accountIdentity.mjs";
 
 export const DEFAULTS = {
   name:          "User",
@@ -177,19 +178,21 @@ export async function saveUser(id, data) {
 
     await db.collection("users").updateOne({ _id: id }, update, { upsert: true });
 
-    // Clamp balances and derive wealth from the live document, not a stale
-    // Discord snapshot. This also repairs legacy rows missing totalWealth.
-    await db.collection("users").updateOne(
-      { _id: id },
-      [{ $set: {
-        money: { $max: [{ $ifNull: ["$money", 0] }, 0] },
-        bank:  { $max: [{ $ifNull: ["$bank", 0] }, 0] },
-        totalWealth: { $add: [
-          { $max: [{ $ifNull: ["$money", 0] }, 0] },
-          { $max: [{ $ifNull: ["$bank", 0] }, 0] },
-        ] },
-      }}]
-    );
+    if ((incOp.money ?? 0) < 0 || (incOp.bank ?? 0) < 0 || (_snap.money ?? 0) < 0 || (_snap.bank ?? 0) < 0) {
+      // Clamp balances and derive wealth from the live document, not a stale
+      // Discord snapshot. This also repairs legacy rows missing totalWealth.
+      await db.collection("users").updateOne(
+        { _id: id },
+        [{ $set: {
+          money: { $max: [{ $ifNull: ["$money", 0] }, 0] },
+          bank:  { $max: [{ $ifNull: ["$bank", 0] }, 0] },
+          totalWealth: { $add: [
+            { $max: [{ $ifNull: ["$money", 0] }, 0] },
+            { $max: [{ $ifNull: ["$bank", 0] }, 0] },
+          ] },
+        }}]
+      );
+    }
   } else {
     // New user (no snapshot) — safe to $set everything since nobody else has this doc yet
     safeData.totalWealth = Number(safeData.money || 0) + Number(safeData.bank || 0);
@@ -390,6 +393,7 @@ export async function registerUser(id, name) {
     },
     { upsert: true }
   );
+  invalidateAccountIdentityCache(db);
 }
 
 /** Convenience: send a "you need to register" message and return false */
