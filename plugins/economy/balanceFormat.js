@@ -23,7 +23,7 @@ export function formatAccountBalance({
   extraRows = [],
 }) {
   const rows = [
-    row("🪙", "Wallet ", money(wallet)),
+    row("$", "Wallet ", money(wallet)),
     row("🏦", "Bank   ", `${money(bank)} / ${money(bankLimit ?? bankLimitForUser({}))}`),
     row("💎", "Gems   ", number(gems)),
   ];
