@@ -62,12 +62,12 @@ export default {
 `╭─❀「 🎰 *𝐒𝐋𝐎𝐓𝐒* 」❀─╮
 │ 📖 *Usage*    :: *.slots <amount>*
 │ 💰 *Min Bet*  :: *$50*
-│ 💰 *Max Bet*  :: *$300B*
+│ 💰 *Max Bet*  :: *$5M*
 │
 │ 💎 *Payouts* (match 3):
 │   7️⃣ ×10  💎 ×7  🔔 ×5  🍇 ×4
 │   🍊 ×3  🍋 ×2.5  🍒 ×2  🃏 ×1.5
-│   Two matching → ×0.5 (partial win)
+│   Two matching → ×0.5 return (net −0.5 stake)
 │
 │ 💰 *Wallet*  :: *${fmt(user.money)}*
 ╰───────────────❀`
@@ -92,7 +92,7 @@ export default {
       resultLine = `│ ✨ *JACKPOT!* Three ${a}s! おめでとう！🎉`;
     } else if (a === b || b === c || a === c) {
       winnings   = Math.floor(amount * 0.5);
-      resultMsg  = "Partial Win ×0.5";
+      resultMsg  = "Partial return ×0.5";
       resultLine = `│ 🌸 *Partial Win!* Two matching 🎊`;
     } else {
       winnings   = 0;
@@ -111,7 +111,7 @@ export default {
 
     const tag = user.name || sender.split("@")[0].split(":")[0];
 
-    const won    = winnings > 0;
+    const won    = net > 0;
     const caption = formatGamblingResult({
       icon: "🎰",
       title: "Slots",
@@ -135,7 +135,9 @@ export default {
               name: "Result",
               value: won
                 ? `🎉 ${resultMsg}\nPayout: ${fmt(winnings)}`
-                : "😢 You lost. Better luck next time!",
+                : winnings > 0
+                  ? `🟡 ${resultMsg}\nPayout: ${fmt(winnings)}\nNet: -${fmt(Math.abs(net))}`
+                  : "😢 You lost. Better luck next time!",
               inline: false,
             },
             { name: "Wallet", value: fmt(user.money), inline: true },
