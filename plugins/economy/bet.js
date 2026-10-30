@@ -40,7 +40,7 @@ export default {
   name: "bet",
   description: "Gamble your cash using amount-based money tiers",
   category: "economy",
-  usage: ".bet <amount | all | half>  ✦ shorthand OK: 10k / 5m / 1b",
+  usage: ".bet <amount | all | half>  ✦ shorthand OK: 10k / 500k / 5m",
   aliases: ["gamble2", "wager"],
   cooldown: 2,
   checkJail: true,
@@ -111,13 +111,13 @@ export default {
 │ \`.bet half\` — bet half your wallet
 │
 │ 💰 *Wallet* :: \`${fmt(user.money)}\`
-│ 🎯 *Tiers* :: \`50% ×1.7 → 9% ×10\`
+│ 🎯 *Tiers* :: \`45% ×2 · max +$5M net\`
 ╰───────────────❀`,
         {
           fields: [
             { name: "Wallet", value: fmt(user.money), inline: true },
             { name: "Maximum", value: "$5M", inline: true },
-            { name: "Betting tiers", value: "50% ×1.7 → 9% ×10", inline: true },
+            { name: "Top tier", value: "45% ×2 · max +$5M net", inline: true },
           ],
         },
       );
