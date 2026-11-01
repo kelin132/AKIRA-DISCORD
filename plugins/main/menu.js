@@ -8,7 +8,7 @@ const discordMenuSessions = new Map();
 
 const categoryEmojis = {
   main: "🏡", economy: "💰", guild: "⚔️", naruto: "🪾", dragonball: "🐉",
-  pokemon: "🎮", cards: "🃏", pets: "🐾", anime: "🍡", staff: "🛡️",
+  pokemon: "🔴", cards: "🃏", pets: "🐾", anime: "🍡", staff: "🛡️",
   company: "🏢", games: "🎲", fun: "🎀", ai: "🪄", search: "🔎",
   image: "🎨", utilities: "🔧", download: "📥", group: "🌸", admin: "⚜️",
   owner: "👑",
