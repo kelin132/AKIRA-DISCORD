@@ -14,8 +14,9 @@ import { setPendingLearn } from "../../lib/pokemon/moveLearnState.mjs";
 import { MART_ITEMS } from "../../lib/pokemon/martItems.mjs";
 import { readPokemonAnimation } from "../../lib/pokemon/media.mjs";
 import { toDiscordPayload } from "../../lib/discordPayload.mjs";
-import { discordAccountKey } from "../../lib/identity.mjs";
+import { discordAccountKey, findUserByIdentity } from "../../lib/identity.mjs";
 import { resolveDiscordAccount } from "../../lib/accountLink.mjs";
+import { findBattleParticipantId } from "../../lib/pokemon/discordBattleIdentity.mjs";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -1216,8 +1217,9 @@ async function onDiscordInteraction({ interaction }) {
   if (prefix !== "battle") return;
 
   const userId = String(interaction.user?.id || "");
-  const sender = await resolveDiscordAccount(userId).catch(() => null)
-    || discordAccountKey(userId);
+  const linkedAccount = await resolveDiscordAccount(userId).catch(() => null);
+  const candidate = linkedAccount || discordAccountKey(userId);
+  const resolvedUser = await findUserByIdentity(candidate);
   const jid = interaction.channelId;
   const battle = getBattle(jid);
 
@@ -1228,8 +1230,8 @@ async function onDiscordInteraction({ interaction }) {
     });
   }
 
-  const isPlayer = battle.challengerJid === sender || battle.opponentJid === sender;
-  if (!isPlayer) {
+  const sender = findBattleParticipantId(battle, [candidate, resolvedUser?._id]);
+  if (sender === undefined) {
     return interaction.reply({
       content: "❌ You are not one of the trainers in this battle.",
       ephemeral: true,
