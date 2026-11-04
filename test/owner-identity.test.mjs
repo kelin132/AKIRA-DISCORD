@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { matchesOwnerPhone, normalizeOwnerPhone } from "../lib/ownerIdentity.mjs";
+import {
+  matchesOwnerPhone,
+  normalizeOwnerPhone,
+  normalizeOwnerNumbers,
+} from "../lib/ownerIdentity.mjs";
 
 test("the configured owner phone matches WhatsApp JID forms", () => {
   assert.equal(matchesOwnerPhone("27612345678@s.whatsapp.net", "+27612345678"), true);
@@ -17,4 +21,11 @@ test("Discord platform IDs cannot match a phone owner number", () => {
 
 test("phone normalization removes formatting", () => {
   assert.equal(normalizeOwnerPhone("+27 (612) 345-678"), "27612345678");
+});
+
+test("owner roster combines configured numbers and removes duplicates", () => {
+  assert.deepEqual(
+    normalizeOwnerNumbers(" +27 612 345 678,27612345679", "+27612345678", ["27612345680"]),
+    ["27612345678", "27612345679", "27612345680"],
+  );
 });
