@@ -658,7 +658,12 @@ export async function removeStaffLevel(id) {
 export async function getStaffMembers() {
   const db = await getDb();
   return db.collection("users").find(
-    { staffLevel: { $gte: 1 } },
+    {
+      $or: [
+        { staffLevel: { $gte: 1 } },
+        { staffLevel: { $in: ["1", "2", "3", "99"] } },
+      ],
+    },
     { projection: { _id: 1, name: 1, staffLevel: 1 } }
   ).toArray();
 }

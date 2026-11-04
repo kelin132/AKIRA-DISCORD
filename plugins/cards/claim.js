@@ -22,18 +22,9 @@ function toOwnedCard(card, spawnId) {
   };
 }
 
-function claimText(card, sender, prefix = "𝐂𝐀𝐑𝐃 𝐂𝐋𝐀𝐈𝐌𝐄𝐃") {
-  return `╭─❀「 🃏 *${prefix}* 」❀─╮
-│ 👤 *Claimed by* :: @${sender.split("@")[0]}
-│
-│ 🃏 *Name*      :: \`${card.name}\`
-│ ⭐ *Tier*      :: \`${card.tier}\`
-│ 📺 *Series*    :: \`${card.series}\`
-│ 🔢 *Claim #*  :: \`${getClaimId(card)}\`
-│
-│ ✅ Added to your collection!
-│ 💬 Use \`.col\` to view it.
-╰───────────────❀`;
+function claimText(card) {
+  const tier = card.tierName || card.tier || card.tierNum || "Unknown tier";
+  return `✅ 🃏 ${card.name || "Card"} (${tier}) claimed. Use \`.col\` to view it.`;
 }
 
 export default {
@@ -42,6 +33,7 @@ export default {
   category: "cards",
   description: "Claim your pending summon, spawn pack, or spawned card",
   usage: ".claim [number]",
+  discordPlainText: true,
 
   async run({ sock, msg, args, sender }) {
     const jid = msg.key.remoteJid;
@@ -95,14 +87,8 @@ export default {
 
         const first = selected[0];
         const text = selected.length === 1
-          ? claimText(first, sender)
-          : `╭─❀「 📦 *𝐏𝐀𝐂𝐊 𝐂𝐋𝐀𝐈𝐌𝐄𝐃* 」❀─╮
-│ 👤 *Claimed by* :: @${sender.split("@")[0]}
-│
-│ 🃏 *Cards added* :: \`${selected.length}\`
-│ ✨ Your pending summon cards are now in your collection.
-│ 💬 Use \`.col\` to view them.
-╰───────────────❀`;
+          ? claimText(first)
+          : `✅ ${selected.length} cards claimed. Use \`.col\` to view them.`;
 
         if (first?.media) {
           try {
@@ -151,7 +137,7 @@ export default {
       reservedSpawn = null;
       spawnReservation = null;
 
-      const text = claimText(card, sender);
+      const text = claimText(card);
       if (card.media) {
         try {
           return await sendCardMedia(sock, jid, card, text, { quoted: msg, mentions: [sender] });

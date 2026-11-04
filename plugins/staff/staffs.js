@@ -4,7 +4,7 @@
  */
 import { getStaffMembers } from "../economy/database.js";
 
-const LEVEL_NAMES = { 1: "🔧 Mod", 2: "🛡️ Staff", 3: "👑 Admin", 99: "⚡ Owner" };
+const LEVEL_NAMES = { 1: "🔧 Mod", 2: "🛡️ Staff", 3: "👑 Owner", 99: "👑 Owner" };
 
 export default {
   name: "staffs",
