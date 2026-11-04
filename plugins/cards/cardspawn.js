@@ -9,7 +9,7 @@ import { spawnDiscordCardNow } from "../../lib/discordSpawners.mjs";
 export default {
   name: "cardspawn",
   aliases: ["spawncard", "cardauto"],
-  description: "Enable or disable automatic card spawning every 15 minutes (group admins only)",
+  description: "Enable or disable automatic card spawning every 12–15 minutes",
   category: "cards",
   usage: ".cardspawn on | .cardspawn off | .cardspawn status",
   isAdmin: true,
@@ -26,7 +26,7 @@ export default {
         const enabled = await isDiscordSpawnEnabled(guildId);
         return discordMessage.reply(
           `🃏 **Automatic Card Spawn**\n\nStatus: ${enabled ? "✅ ON" : "❌ OFF"}\n` +
-          "This channel receives a random card every 20–25 minutes.\n\nUse `.cardspawn on` or `.cardspawn off`.",
+          "This channel receives a random card every 12–15 minutes.\n\nUse `.cardspawn on` or `.cardspawn off`.",
         );
       }
       if (sub === "on") {
@@ -68,8 +68,8 @@ export default {
         text:
 `✅ *Auto Card Spawn: ON*
 
-A random card will appear in this group every *15 minutes*.
-Members can use *.collect* to grab it — first come, first served!`,
+A random card will appear in this group every *12–15 minutes*.
+Members can use *.claim <code>* to claim it at the displayed value.`,
       }, { quoted: msg });
       return;
     }

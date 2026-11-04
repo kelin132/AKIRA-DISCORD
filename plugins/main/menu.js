@@ -70,7 +70,15 @@ function renderDiscordCategory(emoji, title, disabledTag, plugins, menuPrefix) {
     const aliasLine = aliases.length
       ? `\`${aliases.map((alias) => `${menuPrefix}${alias}`).join("`  `")}\``
       : `\`${usage}\``;
-    return `**${plugin.name}**\n${aliasLine}\n${plugin.description || "No description available."}`;
+    const fullDescription = String(plugin.description || "Command help.");
+    const firstSentence = fullDescription
+      .split(/\n/, 1)[0]
+      .split(/[.!?]\s+/, 1)[0]
+      .trim() || "Command help.";
+    const description = firstSentence.length > 110
+      ? `${firstSentence.slice(0, 107).trimEnd()}…`
+      : firstSentence;
+    return `**${plugin.name}**\n${aliasLine}\n${description}`;
   });
 
   return `**${emoji}${title}${disabledTag}**\n\n${entries.join("\n\n")}`;

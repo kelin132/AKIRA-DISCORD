@@ -8,7 +8,9 @@ let profile;
 registerHooks({
   load(url, context, nextLoad) {
     if (url.endsWith("/plugins/cards/db.js")) return { format: "module", shortCircuit: true,
-      source: "export const findOrCreateUser = async () => globalThis.claimProfile;" };
+      source: "export const findOrCreateUser = async () => globalThis.claimProfile; export const getUser = async () => globalThis.claimSavedProfile || null;" };
+    if (url.endsWith("/plugins/economy/database.js")) return { format: "module", shortCircuit: true,
+      source: `export const debitWalletIfAvailable = async (_id, amount) => { if (globalThis.claimWallet < amount) return null; globalThis.claimWallet -= amount; return { money: globalThis.claimWallet, bank: 0 }; }; export const addMoney = async (_id, amount) => { globalThis.claimWallet += amount; }; export const addHistory = async () => {};` };
     if (url.endsWith("/lib/cardApi.mjs")) return { format: "module", shortCircuit: true,
       source: "export const sendCardMedia = async () => { throw Error('No fixture media'); };" };
     return nextLoad(url, context);
@@ -19,8 +21,10 @@ beforeEach(() => {
   for (const key of Object.keys(globalThis.activeSpawns)) delete globalThis.activeSpawns[key];
   profile = { cards: [], pendingCards: [], totalCards: 0, save: async () => {} };
   globalThis.claimProfile = profile;
+  globalThis.claimSavedProfile = null;
+  globalThis.claimWallet = 1000;
 });
-const card = { name: "A character with a very long original ID", tier: "Rare", tierNum: "3", cardId: "VERY_LONG_EXTERNAL_API_IDENTIFIER", claimId: "VERY_LONG_LEGACY_CLAIM_ID", index: 42 };
+const card = { name: "A character with a very long original ID", tier: "Rare", tierNum: "3", cardId: "VERY_LONG_EXTERNAL_API_IDENTIFIER", claimId: "VERY_LONG_LEGACY_CLAIM_ID", index: 42, price: 100 };
 const invoke = async (input, sender = "263771234567@s.whatsapp.net") => {
   const replies = [];
   await claim.run({
@@ -74,10 +78,22 @@ test("claiming one legacy copy does not discard another copy without a spawn ID"
 
 test("chat spawns accept the displayed short code and cannot be claimed twice", async () => {
   globalThis.activeSpawns["fixture@g.us"] = { card, cardId: card.cardId, spawnId: "chat-1" };
-  await invoke(getCardClaimId(card));
+  const replies = await invoke(getCardClaimId(card));
   await invoke(getCardClaimId(card));
   assert.equal(profile.cards.length, 1);
   assert.equal(globalThis.activeSpawns["fixture@g.us"], undefined);
+  assert.equal(globalThis.claimWallet, 900);
+  assert.match(replies[0].text, /\$100/);
+});
+
+test("a spawned card stays available when the wallet cannot cover its value", async () => {
+  globalThis.claimWallet = 50;
+  globalThis.activeSpawns["fixture@g.us"] = { card, cardId: card.cardId, spawnId: "too-expensive" };
+  const replies = await invoke(getCardClaimId(card));
+  assert.equal(profile.cards.length, 0);
+  assert.equal(globalThis.claimWallet, 50);
+  assert.ok(globalThis.activeSpawns["fixture@g.us"]);
+  assert.match(replies[0].text, /not enough money/i);
 });
 
 test("the first correct spawn claimant reserves it before the Mongo save yields", async () => {

@@ -14,8 +14,8 @@ import { getEnabledSpawnChats }            from "./db.js";
 import { log }                             from "../../lib/logger.mjs";
 import { getPrefix }                       from "../../lib/bot.mjs";
 
-const SPAWN_MIN_MS       = 20 * 60 * 1000; // 20 minutes
-const SPAWN_MAX_MS       = 25 * 60 * 1000; // 25 minutes
+const SPAWN_MIN_MS       = 12 * 60 * 1000; // 12 minutes
+const SPAWN_MAX_MS       = 15 * 60 * 1000; // 15 minutes
 const randSpawnMs        = () => SPAWN_MIN_MS + Math.random() * (SPAWN_MAX_MS - SPAWN_MIN_MS);
 const EXPIRE_MS          = 10 * 60 * 1000; // 10 minutes claim window
 
@@ -78,12 +78,12 @@ if (!global.__cardApiSpawnerRunning) {
     }
   }
 
-  // Start with a random 20–25 min interval, re-randomised each cycle
+  // Start with a random 12–15 min interval, re-randomised each cycle
   function scheduleNext() {
     setTimeout(async () => { await runSpawnCycle(); scheduleNext(); }, randSpawnMs());
   }
   scheduleNext();
-  log("info", "[autoSpawn] API-based card spawner initialised (20–25 min random)");
+  log("info", "[autoSpawn] API-based card spawner initialised (12–15 min random)");
 }
 
 // Minimal plugin export — not a user-facing command
