@@ -1,5 +1,6 @@
 import { getUser, requireRegistration } from "./database.js";
 import { generateProfileImage, getProfilePic, resolveRole } from "../../lib/profileGen.mjs";
+import { generateAnimatedProfileCard } from "../../lib/profileAnimation.mjs";
 import { getLevelRole, getAllEarnedRoles, getLevelRoleLabel } from "../../lib/levelRoles.mjs";
 import { getUser as getCardUser } from "../cards/db.js";
 import { countTrainerPokemon } from "../../lib/pokemon/pokemonDb.mjs";
@@ -8,6 +9,29 @@ import { GYMS } from "../../lib/pokemon/gymData.mjs";
 import { getTrainer } from "../../lib/pokemon/players.mjs";
 
 const xpForLevel = (level) => level * 100;
+const PROFILE_VIDEO_FIELDS = ["avatarVideo", "avatarVideoUrl", "profileVideoUrl", "profileVideo"];
+
+function isProfileMediaUrl(value) {
+  return typeof value === "string" && /^https?:\/\//i.test(value);
+}
+
+function isProfileImage(value) {
+  return isProfileMediaUrl(value) ||
+    (typeof value === "string" && /^data:image\/(?:png|jpe?g|webp|gif);base64,/i.test(value));
+}
+
+function resolveProfileVideoSource(user, cardUser, animatedDiscordAvatar) {
+  const userHasVideoField = user && PROFILE_VIDEO_FIELDS.some((field) =>
+    Object.prototype.hasOwnProperty.call(user, field),
+  );
+  const userVideo = PROFILE_VIDEO_FIELDS.map((field) => user?.[field]).find(isProfileMediaUrl);
+  if (userVideo) return userVideo;
+  if (!userHasVideoField) {
+    const cardVideo = PROFILE_VIDEO_FIELDS.map((field) => cardUser?.[field]).find(isProfileMediaUrl);
+    if (cardVideo) return cardVideo;
+  }
+  return animatedDiscordAvatar || null;
+}
 
 function withTimeout(promise, timeoutMs, fallback = null) {
   let timer;
@@ -104,10 +128,12 @@ export default {
     const isQuickProfile = cmd === "p" && target === sender;
     const mentionedDiscordUser = discord?.message?.mentions?.users?.first?.();
     const discordProfileUser = mentionedDiscordUser || discord?.message?.author;
+    const discordAvatarHash = String(discordProfileUser?.avatar || "");
+    const hasAnimatedDiscordAvatar = discordAvatarHash.startsWith("a_");
     const discordAvatar = discordProfileUser?.displayAvatarURL?.({
-      extension: "png",
+      extension: hasAnimatedDiscordAvatar ? "gif" : "png",
       size: 512,
-      forceStatic: true,
+      forceStatic: false,
     }) || null;
 
     // Keep every independent lookup in one batch so another user's profile
@@ -120,9 +146,25 @@ export default {
       withTimeout(guildSystem.getUserPrimaryGuild(target), 2500),
       isQuickProfile ? Promise.resolve(null) : withTimeout(getTrainer(target), 2500),
     ]);
-    const websiteAvatar = [cardUser?.profilePictureUrl, cardUser?.profileImage, cardUser?.avatarUrl]
-      .find((value) => typeof value === "string" && /^https?:\/\//i.test(value));
+    const hasWebsiteProfile = Boolean(user?.websiteProfileUpdatedAt);
+    const websiteAvatarCandidates = [
+      user?.profilePictureUrl,
+      user?.profileImage,
+      user?.avatarUrl,
+      cardUser?.profilePictureUrl,
+      cardUser?.profileImage,
+      cardUser?.avatarUrl,
+    ];
+    const websiteAvatar = (hasWebsiteProfile
+      ? websiteAvatarCandidates.slice(0, 3)
+      : websiteAvatarCandidates
+    ).find(isProfileImage);
     const profilePic = websiteAvatar || profilePicFromSocket;
+    const profileVideo = resolveProfileVideoSource(
+      user,
+      cardUser,
+      hasAnimatedDiscordAvatar ? discordAvatar : null,
+    );
 
     const tag   = target.split("@")[0].split(":")[0];
     const level = user.level ?? 1;
@@ -197,35 +239,60 @@ export default {
 │  *https://aidoru.zone.id/profile*
 ╰━━━━━━━━━━━━━━━━━━━━━━╯`;
 
+    const profileCardData = {
+      username:     registeredName,
+      tag,
+      role,
+      level,
+      xp,
+      xpTarget:     xpForLevel(level),
+      reach,
+      wallet:       user.money    ?? 0,
+      bank:         user.bank     ?? 0,
+      bio:          user.bio      || "No bio set.",
+      guild:        guildName,
+      joined:       joinedDate,
+      streak,
+      items:        user.inventory?.length ?? 0,
+      transactions: user.history?.length   ?? 0,
+      profileImage: profilePic,
+      profileBackground: user.profileBackground || null,
+      profileFrame: user.profileFrame || null,
+      levelRole,
+      earnedRoles,
+      daysActive,
+      cards: cardsOwned,
+      games: gamesPlayed,
+      pokemon: pokemonCount,
+      diamonds: user.diamonds ?? 0,
+    };
+
+    if (profileVideo) {
+      try {
+        const video = await generateAnimatedProfileCard(profileCardData, profileVideo);
+        await sock.sendMessage(
+          jid,
+          {
+            video,
+            mimetype: "video/mp4",
+            fileName: "profile.mp4",
+            gifPlayback: true,
+            caption,
+          },
+          { quoted: msg },
+        );
+        return;
+      } catch (err) {
+        console.error(
+          "[profile] Animated profile-card rendering failed; sending the standard profile card:",
+          err.stack || err.message || err,
+        );
+      }
+    }
+
     let imgBuffer;
     try {
-      imgBuffer = await generateProfileImage({
-        username:     registeredName,
-        tag,
-        role,
-        level,
-        xp,
-        xpTarget:     xpForLevel(level),
-        reach,
-        wallet:       user.money    ?? 0,
-        bank:         user.bank     ?? 0,
-        bio:          user.bio      || "No bio set.",
-        guild:        guildName,
-        joined:       joinedDate,
-        streak,
-        items:        user.inventory?.length ?? 0,
-        transactions: user.history?.length   ?? 0,
-        profileImage: profilePic,
-        profileBackground: user.profileBackground || null,
-        profileFrame: user.profileFrame || null,
-        levelRole,
-        earnedRoles,
-        daysActive,
-        cards: cardsOwned,
-        games: gamesPlayed,
-        pokemon: pokemonCount,
-        diamonds: user.diamonds ?? 0,
-      });
+      imgBuffer = await generateProfileImage(profileCardData);
 
     } catch (err) {
       console.error(
