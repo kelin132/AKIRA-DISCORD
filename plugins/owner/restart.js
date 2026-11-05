@@ -8,10 +8,11 @@
 export default {
   name: "restart",
   aliases: ["reboot", "rs"],
-  description: "Restart the bot process (owner only)",
+  description: "Restart the bot process (staff level 2+)",
   category: "owner",
   usage: ".restart",
   isStaff: true,
+  minStaffLevel: 2,
 
   async run({ sock, msg }) {
     const jid = msg.key.remoteJid;

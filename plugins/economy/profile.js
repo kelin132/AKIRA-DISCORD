@@ -1,6 +1,7 @@
 import { getUser, requireRegistration } from "./database.js";
 import { generateProfileImage, getProfilePic, resolveRole } from "../../lib/profileGen.mjs";
 import { generateAnimatedProfileCard } from "../../lib/profileAnimation.mjs";
+import { resolveProfileVideoSource } from "../../lib/profileMedia.mjs";
 import { getLevelRole, getAllEarnedRoles, getLevelRoleLabel } from "../../lib/levelRoles.mjs";
 import { getUser as getCardUser } from "../cards/db.js";
 import { countTrainerPokemon } from "../../lib/pokemon/pokemonDb.mjs";
@@ -9,8 +10,6 @@ import { GYMS } from "../../lib/pokemon/gymData.mjs";
 import { getTrainer } from "../../lib/pokemon/players.mjs";
 
 const xpForLevel = (level) => level * 100;
-const PROFILE_VIDEO_FIELDS = ["avatarVideo", "avatarVideoUrl", "profileVideoUrl", "profileVideo"];
-
 function isProfileMediaUrl(value) {
   return typeof value === "string" && /^https?:\/\//i.test(value);
 }
@@ -18,19 +17,6 @@ function isProfileMediaUrl(value) {
 function isProfileImage(value) {
   return isProfileMediaUrl(value) ||
     (typeof value === "string" && /^data:image\/(?:png|jpe?g|webp|gif);base64,/i.test(value));
-}
-
-function resolveProfileVideoSource(user, cardUser, animatedDiscordAvatar) {
-  const userHasVideoField = user && PROFILE_VIDEO_FIELDS.some((field) =>
-    Object.prototype.hasOwnProperty.call(user, field),
-  );
-  const userVideo = PROFILE_VIDEO_FIELDS.map((field) => user?.[field]).find(isProfileMediaUrl);
-  if (userVideo) return userVideo;
-  if (!userHasVideoField) {
-    const cardVideo = PROFILE_VIDEO_FIELDS.map((field) => cardUser?.[field]).find(isProfileMediaUrl);
-    if (cardVideo) return cardVideo;
-  }
-  return animatedDiscordAvatar || null;
 }
 
 function withTimeout(promise, timeoutMs, fallback = null) {
@@ -160,11 +146,11 @@ export default {
       : websiteAvatarCandidates
     ).find(isProfileImage);
     const profilePic = websiteAvatar || profilePicFromSocket;
-    const profileVideo = resolveProfileVideoSource(
+    const profileVideo = resolveProfileVideoSource({
       user,
       cardUser,
-      hasAnimatedDiscordAvatar ? discordAvatar : null,
-    );
+      fallback: hasAnimatedDiscordAvatar ? discordAvatar : null,
+    });
 
     const tag   = target.split("@")[0].split(":")[0];
     const level = user.level ?? 1;
